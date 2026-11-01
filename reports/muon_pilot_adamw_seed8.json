@@ -1,0 +1,128 @@
+{
+  "dataset": "MNIST",
+  "purpose": "framework integration smoke run",
+  "backend": "nd",
+  "device": "cpu()",
+  "optimizer": "AdamW",
+  "validation_source": "train_holdout",
+  "split_seed": 17,
+  "train_validation_disjoint": true,
+  "train_indices_sha256": "54e03738741d1cce4029ca3411a7584ba2262bbee1e1da6771efdce2e68a04b9",
+  "validation_indices_sha256": "8407f0ba2dceec3faa4e36cec825fdb6bb9299b941a053bb4a7fa64eae5806d9",
+  "initial_parameter_sha256": "5c45af0b41cef48bb3b930aa1858e3e95e21df74e25a7ad03bf1d98447be5ad2",
+  "muon_parameter_shapes": [],
+  "muon_learning_rate": null,
+  "weight_decay": 0.01,
+  "seed": 8,
+  "train_samples": 55000,
+  "eval_samples": 5000,
+  "hidden_dim": 128,
+  "feature_dim": 64,
+  "learning_rate": 0.003,
+  "batch_size": 64,
+  "initial_validation_loss": 2.414369311141968,
+  "initial_validation_accuracy": 0.1012,
+  "epochs": [
+    {
+      "epoch": 1,
+      "training_loss": 0.22263587920828298,
+      "validation_loss": 0.1288239234447479,
+      "validation_accuracy": 0.9608,
+      "training_seconds": 6.447642625076696,
+      "optimizer_step_seconds": 1.7916369189042598,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 2,
+      "training_loss": 0.10261027064865286,
+      "validation_loss": 0.11759720134735108,
+      "validation_accuracy": 0.9654,
+      "training_seconds": 6.431410166202113,
+      "optimizer_step_seconds": 1.7878936927299947,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 3,
+      "training_loss": 0.07734326573176817,
+      "validation_loss": 0.09630640053749084,
+      "validation_accuracy": 0.9732,
+      "training_seconds": 6.449809583136812,
+      "optimizer_step_seconds": 1.8022708613425493,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 4,
+      "training_loss": 0.060341283353756776,
+      "validation_loss": 0.09495991563796997,
+      "validation_accuracy": 0.9754,
+      "training_seconds": 6.439350417116657,
+      "optimizer_step_seconds": 1.7913312807213515,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 5,
+      "training_loss": 0.054825767254829405,
+      "validation_loss": 0.12262415261268615,
+      "validation_accuracy": 0.9646,
+      "training_seconds": 6.395813333801925,
+      "optimizer_step_seconds": 1.76535873580724,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 6,
+      "training_loss": 0.043691832109202036,
+      "validation_loss": 0.08193189153671265,
+      "validation_accuracy": 0.977,
+      "training_seconds": 6.4364333329722285,
+      "optimizer_step_seconds": 1.7860407955013216,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 7,
+      "training_loss": 0.04296795511868867,
+      "validation_loss": 0.09859262218475341,
+      "validation_accuracy": 0.974,
+      "training_seconds": 6.51940454216674,
+      "optimizer_step_seconds": 1.818945418810472,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 8,
+      "training_loss": 0.03471047275499864,
+      "validation_loss": 0.10705272903442382,
+      "validation_accuracy": 0.9726,
+      "training_seconds": 6.567003208911046,
+      "optimizer_step_seconds": 1.8200786127708852,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 9,
+      "training_loss": 0.03575979154543443,
+      "validation_loss": 0.08290332274436951,
+      "validation_accuracy": 0.9792,
+      "training_seconds": 6.528862250037491,
+      "optimizer_step_seconds": 1.8170697982423007,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 10,
+      "training_loss": 0.02954167130643671,
+      "validation_loss": 0.12123995399475097,
+      "validation_accuracy": 0.9712,
+      "training_seconds": 6.436737792100757,
+      "optimizer_step_seconds": 1.7867807887960225,
+      "optimizer_steps": 860
+    }
+  ],
+  "best_validation_epoch": 6,
+  "best_validation_loss": 0.08193189153671265,
+  "best_validation_accuracy": 0.977,
+  "best_checkpoint_export": "results/muon_pilot/adamw_seed8_best.npz",
+  "training_order_sha256": "1491bfa053bd2011daa7aaf27a672130ec776698417c05c8756d90a2a591a262",
+  "optimizer_numeric_state_bytes": 875088,
+  "checkpoint_export": "results/muon_pilot/adamw_seed8_last.npz",
+  "feature_shape": [
+    5000,
+    64
+  ]
+}

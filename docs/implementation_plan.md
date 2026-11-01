@@ -8,6 +8,14 @@ Completed HW1 autodiff and operations, HW2 layers/data utilities/SGD/Adam, and H
 
 ## Workstream A: Muon training optimization
 
+The implementation and controlled MNIST pilot follow
+[the pinned design](muon_design.md). Needle float32 Muon, auxiliary AdamW,
+layout-aware scaling, holdout splits and independent numerical tests are now
+implemented. The checklist below also defines the broader formal study.
+The completed [paired pilot](../reports/muon_pilot_summary.md) compares three
+training seeds, validation-selected checkpoints and the earlier training budget.
+Hyperparameter-tuned Fashion-MNIST conclusions remain future work.
+
 1. Pin an author implementation and record momentum, Nesterov behavior, Newton-Schulz coefficients/steps, and shape scaling. Start with Needle float32.
 2. Add Muon to `needle.optim`. Initially assign `model.hidden.weight` to Muon; input/output layers and biases use auxiliary AdamW. Check that parameter groups are disjoint and exhaustive.
 3. Validate zero gradients, rectangular matrices, optimizer state, and agreement with an independent NumPy iteration. A five-step approximation need not exactly equal the SVD polar factor.

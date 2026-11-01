@@ -2,7 +2,10 @@
 
 A private 10-714 project workspace built from the completed HW1 autodiff, HW2 layers/optimizers/data utilities, and HW3 NDArray backends.
 
-The two project workstreams are Muon training optimization and TurboQuant-MSE feature storage. Quantization is the current implementation phase; the optimizer comparison follows the [implementation plan](docs/implementation_plan.md).
+The two project workstreams are Muon training optimization and TurboQuant-MSE
+feature storage. Both are implemented in the integrated Needle framework.
+Controlled experiments and the remaining formal study follow the
+[implementation plan](docs/implementation_plan.md).
 
 ## Setup
 
@@ -83,11 +86,41 @@ python apps/benchmark_quantization.py --features results/mnist_features.npz --ou
 
 Within the original course workspace, `--data-dir` defaults to the adjacent `hw0/data`. The shared model is `784 -> 128 -> 64 -> 10`; `model.features(x)` exposes the 64-dimensional gallery representation. This command is an MNIST integration check, not the final Fashion-MNIST study. The original baseline record is in [reports](reports/).
 
+## Muon training
+
+`needle.optim.Muon` implements the pinned author's momentum/Newton-Schulz
+update in Needle float32. It expects hidden Linear matrices in Needle's
+`(input, output)` layout and adapts shape scaling accordingly.
+`MuonWithAuxAdamW` combines disjoint Muon and auxiliary AdamW groups. The shared
+encoder uses Muon only for `hidden.weight`, with AdamW for other parameters.
+The [paired training pilot](reports/muon_pilot_summary.md) reports three seeds,
+ten-epoch validation curves, update cost and state bytes. In the predefined CPU
+setting, Muon does not establish a quality or speed advantage over AdamW.
+
+```bash
+python apps/train_baseline.py --device cpu --optimizer muon --train-limit 55000 --validation-size 5000 --eval-limit 5000 --epochs 10 --seed 7 --best-checkpoint-output results/muon_best.npz --output results/muon_training.json
+```
+
+Select `--optimizer adamw` for the baseline. Holdout selection uses a fixed split
+seed; initialization and sample-order hashes enable paired comparisons. The
+trainer records per-epoch loss/accuracy, total training-loop and optimizer time,
+numeric optimizer-state bytes, and the minimum-validation-loss checkpoint.
+See the [Muon design](docs/muon_design.md) for algorithm pinning, float32/layout
+adaptations and pilot limitations. The historical three-epoch AdamW training
+and fixed-feature quantizer comparisons remain separate records.
+`train_baseline.py --feature-output` exports the final epoch's features. Use
+`export_features.py --checkpoint <best-checkpoint>` for features from a selected
+validation checkpoint.
+
 ## Verification and scope
 
 Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.
 
-The current quantizer reproduces the MSE variant. QJL residual correction, LLM KV-cache experiments, GPU quantization kernels, and the Muon comparison are later work. Comparative findings depend on dataset, bit width, metadata amortization, and implementation overhead; no acceleration or synergy is assumed.
+The current quantizer reproduces the MSE variant. QJL residual correction, LLM
+KV-cache experiments, GPU quantization kernels and the formal Fashion-MNIST
+joint study remain later work. Comparative findings depend on dataset, bit
+width, metadata amortization and implementation overhead; no acceleration or
+synergy is assumed.
 
 ## Provenance
 

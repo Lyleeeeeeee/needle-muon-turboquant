@@ -1,9 +1,0 @@
-{
-  "fp32_ip_vs_cosine_top10_overlap": 1.0,
-  "queries_with_different_neighbor_sets": 0,
-  "queries": 1000,
-  "gallery_rows": 60000,
-  "device": "cpu()",
-  "gallery_max_float64_norm_deviation_from_one": 3.2786505954618406e-08,
-  "scope": "post-timing quality validation; excluded from retained query measurements"
-}

@@ -1,283 +1,157 @@
-# Needle: Muon + TurboQuant
+# Muon Training and TurboQuant Retrieval in Needle
 
-A private 10-714 project workspace built from the completed HW1 autodiff, HW2 layers/optimizers/data utilities, and HW3 NDArray backends.
+A 10-714 deep learning systems project using the completed HW1–HW3 Needle
+framework. The project trains image encoders with AdamW or Muon plus auxiliary
+AdamW, then stores their retrieval embeddings as FP32, uniform quantization, or
+TurboQuant-MSE. Training, autodiff, decoding and scoring use Needle/native C++.
+NumPy/SciPy support data handling, calibration, random rotations and analysis;
+PyTorch is not a training or inference dependency.
 
-The two project workstreams are Muon training optimization and TurboQuant-MSE
-feature storage. Both are implemented in the integrated Needle framework.
-Controlled experiments and the remaining formal study follow the
-[implementation plan](docs/implementation_plan.md).
+## Consolidated results
 
-## Setup
+This is the only results table. [The CSV](report/results.csv) is an export of
+this same table; [the evidence JSON](report/results.json) retains the required
+samples, protocols, source/checkpoint hashes and historical provenance.
+
+<!-- RESULTS:START -->
+| Study | Optimizer | Gallery format | P@10 (%) | Own-FP32 R@10 (%) | Gallery MB | Compression | Training cost | Query s / 1k |
+|---|---|---|---|---|---|---|---|---|
+| 10 epochs / original CPU | AdamW | FP32 | 86.11 ± 0.21 | 100.00 ± 0.00 | 14.0800 | 1.00× | 87.762 ± 0.339 s | 3.036 ± 0.019 |
+| 10 epochs / original CPU | AdamW | Uniform 2-bit | 85.45 ± 0.17 | 25.26 ± 1.44 | 1.3200 | 10.67× | 87.762 ± 0.339 s | 3.024 ± 0.016 |
+| 10 epochs / original CPU | AdamW | Uniform 4-bit | 85.95 ± 0.31 | 74.42 ± 1.21 | 2.2000 | 6.40× | 87.762 ± 0.339 s | 3.029 ± 0.015 |
+| 10 epochs / original CPU | AdamW | TurboQuant 2-bit | 85.60 ± 0.19 | 34.95 ± 1.51 | 1.1164 | 12.61× | 87.762 ± 0.339 s | 3.067 ± 0.057 |
+| 10 epochs / original CPU | AdamW | TurboQuant 4-bit | 86.01 ± 0.30 | 68.46 ± 1.00 | 1.9964 | 7.05× | 87.762 ± 0.339 s | 3.052 ± 0.034 |
+| 10 epochs / original CPU | Muon + aux AdamW | FP32 | 86.25 ± 0.41 | 100.00 ± 0.00 | 14.0800 | 1.00× | 220.025 ± 0.158 s | 3.065 ± 0.084 |
+| 10 epochs / original CPU | Muon + aux AdamW | Uniform 2-bit | 85.90 ± 0.45 | 31.70 ± 0.73 | 1.3200 | 10.67× | 220.025 ± 0.158 s | 3.032 ± 0.068 |
+| 10 epochs / original CPU | Muon + aux AdamW | Uniform 4-bit | 86.33 ± 0.35 | 76.94 ± 0.64 | 2.2000 | 6.40× | 220.025 ± 0.158 s | 3.053 ± 0.056 |
+| 10 epochs / original CPU | Muon + aux AdamW | TurboQuant 2-bit | 85.98 ± 0.33 | 43.93 ± 0.77 | 1.1164 | 12.61× | 220.025 ± 0.158 s | 3.070 ± 0.012 |
+| 10 epochs / original CPU | Muon + aux AdamW | TurboQuant 4-bit | 86.18 ± 0.50 | 74.99 ± 0.49 | 1.9964 | 7.05× | 220.025 ± 0.158 s | 3.061 ± 0.021 |
+| 220s terminal / original CPU (posthoc) | AdamW | FP32 | 87.57 ± 0.64 | 100.00 ± 0.00 | 14.0800 | 1.00× | 220.003 ± 0.002 s | 3.124 ± 0.023 |
+| 220s terminal / original CPU (posthoc) | Muon + aux AdamW | FP32 | 86.07 ± 0.44 | 100.00 ± 0.00 | 14.0800 | 1.00× | 220.015 ± 0.006 s | 3.131 ± 0.056 |
+| 128 updates / original CPU | AdamW | — | — | — | — | — | 10.362 ms/step | — |
+| 128 updates / original CPU | Muon + aux AdamW | — | — | — | — | — | 25.840 ms/step | — |
+| 128 updates / final CPU | AdamW | — | — | — | — | — | 7.310 ms/step (1.430×) | — |
+| 128 updates / final CPU | Muon + aux AdamW | — | — | — | — | — | 14.778 ms/step (1.750×) | — |
+<!-- RESULTS:END -->
+
+P@10 is the fraction of the ten returned images sharing the query category.
+R@10 is overlap with each encoder's own exact FP32 neighbors. These measure
+category usefulness and neighbor fidelity respectively; neither is classifier
+accuracy. Gallery size is decimal MB, including persistent quantizer metadata;
+compression is relative to FP32. Images, model weights, labels and FP32 queries
+are outside this storage count. Query time is for a batch of 1,000 queries,
+including normalization, rotation, decoding, native scoring and top-k.
+
+The first ten rows use ten epochs on the original backend and validation-loss
+checkpoint selection. Quality and cost are mean ± sample SD over training
+seeds 8/9/10. TurboQuant rotations 7/8/9 are averaged within training seed first;
+they are not nine independent trained models. The two historical equal-time
+rows use terminal 220-second models as a posthoc sensitivity check. The original
+validation-loss checkpoint comparison slightly favored Muon; terminal selection
+reversed that outcome. Both results remain in the evidence file.
+
+The last four rows are a new, direct original-versus-final backend comparison:
+128 complete updates, batch 64, seed 8, five alternating process pairs. They
+report median milliseconds per update and paired-median speedup. The complete
+loop includes batch/Tensor preparation, forward/backward, loss reads and optimizer
+updates. Setup and feature export are outside timing. These are timing repetitions,
+not model-quality seeds. The old and new paths must produce bit-identical
+parameters, losses and features. These short timings are not a rerun of the
+220-second retrieval comparison; historical quality rows retain their original
+backend and measurement revisions.
+
+The evidence supports gallery compression with small category-precision changes.
+Two-bit TurboQuant preserves exact neighbors better than uniform quantization
+on these encoders; four-bit uniform can preserve neighbors better than TurboQuant.
+Muon has not shown a robust equal-time retrieval advantage in this CPU setting.
+A small retrieval gain at equal epochs is not evidence of faster training.
+
+## Method and implementation
+
+Fashion-MNIST has ten clothing categories. A fixed split (seed 17) uses 55,000
+training and 5,000 validation images. The gallery excludes validation; queries
+are 1,000 common official-test images already explored during the project.
+The encoder is a plain ReLU MLP, 784–128–128–128–64–10, with 64-dimensional
+retrieval features and a classification training objective. All parameters train.
+
+AdamW uses first/second gradient moments with decoupled weight decay. Muon uses
+momentum followed by five Newton–Schulz orthogonalization iterations on three
+hidden weight matrices (40,960 of 142,410 parameters). Input/classifier weights
+and biases use auxiliary AdamW. A three-candidate learning-rate search at seed 7
+selected AdamW/auxiliary LR 0.001 and Muon LR 0.007 by minimum validation loss,
+before repeat seeds. Batch size is 64 and weight decay is 0.01. All candidates
+and the selection rule are retained in the evidence JSON.
+
+Uniform quantization stores each row's affine scale/offset and packed 2/4-bit
+coordinate indices. TurboQuant-MSE applies a shared random orthogonal rotation,
+uses sphere-distribution Lloyd–Max codebooks, and stores packed indices plus row
+norms. This implements the MSE variant, without QJL residual correction. Only the
+gallery is compressed. All methods use cosine scores after normalizing reconstructed
+vectors, avoiding a ranking bias from reconstruction-length changes. Search
+decodes blocks of 256 rather than a permanent dense gallery. The implementation
+demonstrates storage reduction; it does not establish faster queries.
+
+The final CPU implementation includes three systems changes:
+
+- Compact uses direct rank-two indexing and coordinate carry for other ranks.
+- Muon retains tiled NS intermediates across iterations, with one changing tiled
+  transpose per iteration. Pack once and unpack once per hidden matrix.
+- Shared matrix multiplication packs directly from strided/transpose views in
+  C++ and unpacks directly to ordinary output, benefiting both optimizers.
+
+MatmulTiled/AlignedDot arithmetic, accumulation order, optimizer formulas and
+float32 stages are preserved. Scratch storage is temporary within each call;
+there is no persistent packed cache. `NEEDLE_CPU_MATMUL=reference` before import
+selects the original public wrapper. `use_tiled_ns=False` selects reference NS.
+The total backend benchmark separately builds the original Compact kernel from
+its pinned Git revision, keeping current Python code and compiler flags fixed.
+
+Algorithm references: [Muon author implementation](https://github.com/KellerJordan/Muon/blob/f98f1cacc0263b04290753e32be8d498c1efc806/muon.py)
+and [TurboQuant Algorithm 1](https://arxiv.org/html/2504.19874v1).
+
+## Setup and reproduction
 
 ```bash
 python -m pip install -r requirements-dev.txt
 python tools/build_cpu.py
 python -m pytest -q
+python tools/build_report.py --check
 ```
 
-The build helper compiles the CPU extension for the active Python interpreter on macOS or Linux. It uses pybind11 headers, optionally reusing headers from an installed PyTorch distribution; model training and retrieval use Needle. Native CPU is the primary quantization backend. The `cpu_numpy()` device provides a reference path. CUDA source is retained, but the new quantization kernels are CPU-only.
-
-## Quantization
-
-`needle.quantization` implements Algorithm 1 (TurboQuant-MSE): exact sphere-distribution Lloyd-Max codebooks, shared random orthogonal rotation, real packed 2/4-bit indices, row norms, block decoding, and inner-product top-k search. FP32 and per-row affine uniform quantization provide comparison baselines. Packing and both quantized decoders have native CPU kernels.
-
-```python
-import numpy as np
-from needle.quantization import TurboQuantMSE
-
-gallery = np.random.default_rng(7).normal(size=(2048, 64)).astype('float32')
-quantizer = TurboQuantMSE(dim=64, bits=4, seed=7)
-store = quantizer.encode(gallery)
-result = store.search(gallery[:8], k=10, block_size=256, metric='cosine')
-print(store.storage_bytes, result.indices)
-store.save('gallery.npz')
-```
-
-Input norms are restored within float32 range; zero vectors are supported.
-Search defaults to raw inner products for compatibility. Select
-`metric='cosine'` to normalize queries and reconstructed gallery blocks using
-Needle NDArray operations before scoring. Zero rows have zero scores. Query
-normalization precedes rotation; gallery normalization stays blockwise without
-caching a dense decoded gallery. TurboQuant searches in the rotated basis,
-avoiding an inverse rotation per gallery block.
-
-## Run comparisons
+The build uses C++17 and -O2. The helper can reuse installed PyTorch pybind11
+headers as a build fallback; it does not import PyTorch into model execution.
+Native CPU float32 is the evaluated backend; CPU NumPy provides a numerical
+reference. Put the four standard Fashion-MNIST IDX gzip files in
+`data/fashion-mnist/` (train/t10k images and labels). Data, checkpoints, feature
+archives and generated runs are ignored by Git.
 
 ```bash
-python apps/benchmark_quantization.py --metric cosine --output results/synthetic_quantization.json
+# Fast end-to-end check of training -> own-model features -> all gallery stores.
+python experiments/run_report.py --smoke
+
+# Rerun the locked equal-epoch configurations on the current backend.
+python experiments/run_report.py --study epochs --seeds 8 9 10
+
+# Current-backend equal-time terminal models; this is a new experiment.
+python experiments/run_report.py --study timed --checkpoint terminal --seeds 8 9 10
+
+# Direct total systems ablation and an optional fixed-gradient cost audit.
+python experiments/benchmark_system.py --blocks 5 --output results/system.json
+python experiments/profile_optimizer.py --output results/profile.json
+
+# Verify the published table, CSV and historical evidence references.
+python tools/build_report.py --check --verify-history
 ```
 
-This compares FP32, uniform 2/4-bit, and TurboQuant-MSE 2/4-bit in isolated workers. Reports include numerical buffer bytes, actual archive bytes, setup/build costs, query latency, reconstruction error, recall, decoded-block sizes, and whole-worker peak RSS. Read the [methodology](docs/quantization.md) before interpreting memory or timing numbers. [Current measurements](reports/quantization_summary.md) include both improvements and negative findings.
+New runs write to `results/` and do not overwrite published evidence. Historical
+quality numbers require the measurement revisions recorded in `report/results.json`;
+current-backend equal-time quality still needs measurement. All previous exploratory
+runs, designs and plots are available in Git history at commit
+`c19dcebfb416fe68e7c26024724de9fe79129213`, rather than in the current report tree.
 
-The [scale-study design](docs/quantization_scale_design.md) crosses training-set
-and gallery sizes using frozen checkpoints and identical query images. The
-completed [scale-study results](reports/quantization_scale_summary.md) cover both
-training sizes, both gallery sizes, and three rotations on 1,000 common queries.
-Larger-data training helps both methods; uniform still has better exact-neighbor
-recall under the original raw-inner-product scorer. The subsequent
-[quality diagnosis](reports/quantization_diagnosis.md) finds a substantial
-reconstructed-norm scoring effect and coordinate dependence. With the same
-decoded-cosine scorer, TurboQuant leads at two bits and uniform leads at four
-bits on the full learned gallery. Cosine is now implemented in Needle and
-available with `search(..., metric='cosine')` or benchmark `--metric cosine`.
-The production default remains raw inner product. The
-trainer accepts `--checkpoint-output results/encoder.npz`; independently expand
-retrieval without retraining with:
-
-```bash
-python apps/export_features.py --checkpoint results/encoder.npz --gallery-size 60000 --queries 1000 --output results/expanded_features.npz
-```
-
-The exporter preserves the original 4,096-image gallery and 256-image query
-selections as prefixes by default. Match `--reference-train`,
-`--reference-queries`, and `--seed` to other original smoke-run settings.
-
-The [native cosine comparison](reports/native_cosine_summary.md) repeats both
-score modes on the full frozen gallery, including normalization in query
-timing. It confirms the two-bit TurboQuant advantage and four-bit uniform
-advantage in the actual Needle API, with unchanged persistent storage.
-
-For an encoder-feature integration check, provide MNIST's four original `.gz` files in one directory:
-
-```bash
-python apps/train_baseline.py --data-dir /path/to/mnist --device cpu --train-limit 1024 --eval-limit 256 --epochs 3 --feature-output results/mnist_features.npz --output results/encoder.json
-python apps/benchmark_quantization.py --features results/mnist_features.npz --output results/encoder_quantization.json
-```
-
-Within the original course workspace, `--data-dir` defaults to the adjacent `hw0/data`. The shared model is `784 -> 128 -> 64 -> 10`; `model.features(x)` exposes the 64-dimensional gallery representation. This command is an MNIST integration check, not the final Fashion-MNIST study. The original baseline record is in [reports](reports/).
-
-## Muon training
-
-`needle.optim.Muon` implements the pinned author's momentum/Newton-Schulz
-update in Needle float32. It expects hidden Linear matrices in Needle's
-`(input, output)` layout and adapts shape scaling accordingly.
-`MuonWithAuxAdamW` combines disjoint Muon and auxiliary AdamW groups. The shared
-encoder uses Muon only for `hidden.weight`, with AdamW for other parameters.
-The [paired training pilot](reports/muon_pilot_summary.md) reports three seeds,
-ten-epoch validation curves, update cost and state bytes. In the predefined CPU
-setting, Muon does not establish a quality or speed advantage over AdamW.
-
-```bash
-python apps/train_baseline.py --device cpu --optimizer muon --train-limit 55000 --validation-size 5000 --eval-limit 5000 --epochs 10 --seed 7 --best-checkpoint-output results/muon_best.npz --output results/muon_training.json
-```
-
-Select `--optimizer adamw` for the baseline. Holdout selection uses a fixed split
-seed; initialization and sample-order hashes enable paired comparisons. The
-trainer records per-epoch loss/accuracy, total training-loop and optimizer time,
-numeric optimizer-state bytes, and the minimum-validation-loss checkpoint.
-See the [Muon design](docs/muon_design.md) for algorithm pinning, float32/layout
-adaptations and pilot limitations. The historical three-epoch AdamW training
-and fixed-feature quantizer comparisons remain separate records.
-`train_baseline.py --feature-output` exports the final epoch's features. Use
-`export_features.py --checkpoint <best-checkpoint>` for features from a selected
-validation checkpoint.
-
-## Learning-rate and dataset comparison
-
-The [predeclared study](docs/lr_dataset_study_design.md) gives AdamW and Muon
-three paired learning-rate configurations each on MNIST and Fashion-MNIST.
-Seed7 selects rates by validation loss; fresh seeds8/9/10 assess the selected
-configurations. The [full report](reports/lr_dataset_study/summary.md) includes
-all candidates, validation curves, CPU costs and the final Fashion test.
-
-```bash
-python experiments/run_lr_dataset_study.py
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 python experiments/summarize_lr_dataset_study.py
-```
-
-Use `--dataset Fashion-MNIST` with `train_baseline.py`; its default directory is
-`data/fashion-mnist/`. Both datasets use the original IDX loader and native
-Needle training. Records include dataset identity and file SHA256 hashes.
-Download the official Fashion training files before the runner. The summarizer
-locks all choices before requesting the official test files; see the study
-report for the staged evaluation protocol. Checkpoints and downloaded data
-remain local ignored artifacts.
-For a fresh full reproduction, archive the published `reports/lr_dataset_study/`
-directory outside that output path first; its matching checkpoints are local.
-The runner then creates a new set of records and checkpoints instead of silently
-mixing old records with missing model files.
-This study evaluates classification. The joint retrieval study below uses its
-fixed selected models to evaluate embeddings and compression separately.
-
-## Joint retrieval from tuned encoders
-
-The [joint study](reports/joint_retrieval/summary.md) connects each tuned model to
-its own 64D gallery/query embeddings and FP32, uniform 2/4-bit and TurboQuant-MSE 2/4-bit
-stores. All six models share 55,000 gallery images and 1,000 query image IDs. The
-fixed validation holdout is excluded from the gallery. Three rotation trials
-are averaged within each training seed before aggregating three training seeds.
-
-```bash
-python experiments/run_joint_retrieval.py
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 python experiments/summarize_joint_retrieval.py
-```
-
-`export_features.py --dataset Fashion-MNIST --validation-size 5000 --split-seed 17`
-supports dataset-aware provenance and holdout exclusion; legacy MNIST selections
-are preserved. `benchmark_quantization.py --methods ...` selects method workers
-without changing their algorithms. The report separates category precision,
-own-model FP32-neighbor recall, signed compression loss, persistent bytes and
-whole-query-batch time. Classification test data was already viewed; this is a
-fixed-model retrieval extension with no new selection or untouched-test claim.
-Only gallery vectors are compressed; queries remain float32.
-Local models from the learning-rate study are required. See the report for
-artifact checks and fresh-reproduction instructions.
-
-## Deeper encoder comparison
-
-`train_baseline.py --extra-hidden-layers 2` inserts two 128-to-128 Linear+ReLU
-layers, giving 784-128-128-128-64-10 while keeping 64D embeddings. Muon covers all
-three hidden weight matrices: 40,960/142,410 parameters (28.76%), versus 7.49%
-in the default shallow model. Input/classifier weights and all biases retain
-auxiliary AdamW. The default model and old version1 checkpoints stay compatible;
-version2 records and restores every added layer.
-
-```bash
-python experiments/run_depth_study.py
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 python experiments/summarize_depth_study.py
-```
-
-The [predefined depth study](docs/depth_study_design.md) repeats the same
-three-candidate tuning budget and three repeat seeds on Fashion-MNIST, followed
-by identical gallery/query images and quantizers. The [depth report](reports/depth_study/summary.md)
-compares both encoders and both architectures, with training cost and compression
-loss separate from absolute retrieval quality. This comparison changes depth,
-parameter count and compute; it cannot isolate Muon coverage as a causal effect.
-
-## Equal-time training and optimizer profiling
-
-The [equal-time protocol](docs/time_budget_design.md) gives each existing tuned
-deep encoder 220 seconds, with four common-time validation checkpoints and three
-paired training seeds. The [report](reports/time_budget_study/summary.md) compares
-retrieval after validation-based selection, and separates optimizer update costs
-from other training work. A fixed-gradient microbenchmark diagnoses Muon's
-Newton-Schulz products, native matrix kernels and layout compaction separately.
-
-```bash
-python experiments/run_time_budget_study.py --phase all
-python experiments/profile_optimizer.py
-python experiments/summarize_time_budget_study.py
-```
-
-Intermediate validation/checkpoint costs count toward the training budget;
-setup and terminal evaluation/export do not. Previously selected learning rates
-are retained, so this is not a new equal-time hyperparameter search. Historical
-epoch-budget records and all optimizer/quantizer formulas remain unchanged.
-
-## CPU Compact indexing optimization
-
-The [implementation change log](docs/project_change_log.md) records the
-rank-two loops and coordinate-carry replacement for the inherited HW3 Compact
-indexing loop,
-including rationale, exact scope and evidence for the final project report.
-The [separate kernel comparison](reports/compact_optimization/summary.md) measures
-both AdamW and Muon with unchanged formulas and copy/layout-conversion counts.
-
-```bash
-python experiments/benchmark_compact_optimization.py
-```
-
-Historical experiment validators pin earlier backend source hashes. Use their
-recorded Git revision to reproduce them; their published timing results have
-not been replaced by the optimized backend measurements.
-
-## Tiled Muon intermediate reuse
-
-Muon retains normalized NS intermediates in the native tiled layout across all
-iterations on supported CPU matrices. The existing matrix kernels and float32
-arithmetic stages are reused; normalization, momentum and aspect scaling remain
-in Needle. Both dimensions must be multiples of the native tile size (8).
-Other backends/sizes fall back automatically. `use_tiled_ns=False` on Muon or
-MuonWithAuxAdamW explicitly selects the reference path for controlled comparisons.
-
-The [design](docs/muon_tiled_design.md), [paired measurements](reports/muon_tiled/summary.md)
-and [durable change log](docs/project_change_log.md) preserve algorithm parity,
-logical layout work (including internal transposes), and timing limitations.
-The earlier Compact benchmark explicitly disables tiled NS to keep its separate
-ablation meaningful. Historical records remain pinned to their revisions.
-
-```bash
-python experiments/benchmark_muon_tiled.py
-python experiments/summarize_muon_tiled.py
-```
-
-## Shared stride-aware CPU Matmul
-
-The public native CPU matrix product now packs directly from input views,
-including transposes, and unpacks directly into ordinary contiguous outputs.
-This benefits both AdamW and Muon forward/backward passes. The tiled arithmetic
-is unchanged; unsupported dimensions/devices and older extensions fall back.
-
-Set `NEEDLE_CPU_MATMUL=reference` before importing Needle to use the original
-course wrapper; the default is `strided`. This switch is independent of
-`use_tiled_ns`: Muon's native internal NS products remain enabled in both arms
-of this shared-path ablation. Earlier-stage benchmark workers explicitly select
-the reference public path to keep their historical optimizations isolated.
-
-Five paired short training measurements give median update times of
-8.40 to 7.28 ms for AdamW and 15.93 to 14.77 ms for Muon. Parameters, losses and
-embeddings agree bit-for-bit; this is not a new equal-time retrieval result.
-See the [design](docs/shared_matmul_design.md),
-[raw evidence and report](reports/shared_matmul/summary.md) and
-[durable change log](docs/project_change_log.md).
-
-```bash
-python experiments/benchmark_shared_matmul.py --blocks 5
-python experiments/summarize_shared_matmul.py
-```
-
-## Verification and scope
-
-Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.
-
-The current quantizer reproduces the MSE variant. QJL residual correction, LLM
-KV-cache experiments and GPU quantization kernels remain later work.
-Comparative findings depend on dataset, bit
-width, metadata amortization and implementation overhead; no acceleration or
-synergy is assumed.
-
-## Provenance
-
-Original source archives remain local in `sources/`. [The manifest](sources/manifest.json) records their sources and SHA-256 hashes. HW2 already includes the completed HW1 implementation. Integration adapts backend selection, initialization, reductions, stable log-sum-exp, and gradient device placement to HW3.
-
-The original HW2 `Adam` is preserved. A separate, tested `AdamW` provides decoupled weight decay for project comparisons. Original homework folders remain separate. Keep this repository private because it contains course-framework solutions.
+The maintained tree contains the Needle framework/native kernels, six application
+modules for training/export/retrieval, a unified experiment runner, one total
+systems benchmark, profiling/aggregation helpers, correctness tests, and the
+single consolidated report dataset/table. Tests cover independent numerical
+oracles, exact reference parity, optimizer updates, strided layouts, checkpoint
+round trips, quantization/scoring, data separation and report completeness.

@@ -70,7 +70,7 @@ def test_invalid_time_budget_rejected_before_training(budget):
 
 def test_partial_epoch_pairing_checks_order_prefix_not_total_length():
     sys.path.insert(0, str(ROOT / 'experiments'))
-    from run_time_budget_study import validate_timed_pair
+    from common import validate_timed_pair
 
     shared = {'initial_parameter_sha256': 'init', 'train_indices_sha256': 'train',
               'validation_indices_sha256': 'val', 'data_files_sha256': {'x': 'data'},

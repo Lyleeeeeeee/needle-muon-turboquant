@@ -57,7 +57,7 @@ def test_random_valid_strided_layouts_match_numpy():
 
 
 def test_paired_speed_summary_uses_pair_ratios_and_checks_output_parity():
-    from benchmark_compact_optimization import summarize_pairs
+    from common import summarize_pairs
 
     rows = [dict(block=block, variant=variant,
                  metrics={'case': dict(seconds=seconds, output_sha256='same')})
@@ -73,7 +73,7 @@ def test_paired_speed_summary_uses_pair_ratios_and_checks_output_parity():
 
 
 def test_paired_speed_summary_rejects_missing_and_duplicate_variants():
-    from benchmark_compact_optimization import summarize_pairs
+    from common import summarize_pairs
 
     row = dict(block=0, variant='old', metrics={'x': dict(seconds=.1, output_sha256='a')})
     for rows in ([row], [row, row]):

@@ -1,0 +1,17 @@
+Study,Optimizer,Gallery format,P@10 (%),Own-FP32 R@10 (%),Gallery MB,Compression,Training cost,Query s / 1k
+10 epochs / original CPU,AdamW,FP32,86.11 ± 0.21,100.00 ± 0.00,14.0800,1.00×,87.762 ± 0.339 s,3.036 ± 0.019
+10 epochs / original CPU,AdamW,Uniform 2-bit,85.45 ± 0.17,25.26 ± 1.44,1.3200,10.67×,87.762 ± 0.339 s,3.024 ± 0.016
+10 epochs / original CPU,AdamW,Uniform 4-bit,85.95 ± 0.31,74.42 ± 1.21,2.2000,6.40×,87.762 ± 0.339 s,3.029 ± 0.015
+10 epochs / original CPU,AdamW,TurboQuant 2-bit,85.60 ± 0.19,34.95 ± 1.51,1.1164,12.61×,87.762 ± 0.339 s,3.067 ± 0.057
+10 epochs / original CPU,AdamW,TurboQuant 4-bit,86.01 ± 0.30,68.46 ± 1.00,1.9964,7.05×,87.762 ± 0.339 s,3.052 ± 0.034
+10 epochs / original CPU,Muon + aux AdamW,FP32,86.25 ± 0.41,100.00 ± 0.00,14.0800,1.00×,220.025 ± 0.158 s,3.065 ± 0.084
+10 epochs / original CPU,Muon + aux AdamW,Uniform 2-bit,85.90 ± 0.45,31.70 ± 0.73,1.3200,10.67×,220.025 ± 0.158 s,3.032 ± 0.068
+10 epochs / original CPU,Muon + aux AdamW,Uniform 4-bit,86.33 ± 0.35,76.94 ± 0.64,2.2000,6.40×,220.025 ± 0.158 s,3.053 ± 0.056
+10 epochs / original CPU,Muon + aux AdamW,TurboQuant 2-bit,85.98 ± 0.33,43.93 ± 0.77,1.1164,12.61×,220.025 ± 0.158 s,3.070 ± 0.012
+10 epochs / original CPU,Muon + aux AdamW,TurboQuant 4-bit,86.18 ± 0.50,74.99 ± 0.49,1.9964,7.05×,220.025 ± 0.158 s,3.061 ± 0.021
+220s terminal / original CPU (posthoc),AdamW,FP32,87.57 ± 0.64,100.00 ± 0.00,14.0800,1.00×,220.003 ± 0.002 s,3.124 ± 0.023
+220s terminal / original CPU (posthoc),Muon + aux AdamW,FP32,86.07 ± 0.44,100.00 ± 0.00,14.0800,1.00×,220.015 ± 0.006 s,3.131 ± 0.056
+128 updates / original CPU,AdamW,—,—,—,—,—,10.362 ms/step,—
+128 updates / original CPU,Muon + aux AdamW,—,—,—,—,—,25.840 ms/step,—
+128 updates / final CPU,AdamW,—,—,—,—,—,7.310 ms/step (1.430×),—
+128 updates / final CPU,Muon + aux AdamW,—,—,—,—,—,14.778 ms/step (1.750×),—

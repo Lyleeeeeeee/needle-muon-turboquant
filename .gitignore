@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.so
+*.dylib
+*.o
+.pytest_cache/
+.venv/
+.DS_Store
+build/
+data/
+datasets/
+results/
+sources/*.tar.gz
+*.npz
+*.npy

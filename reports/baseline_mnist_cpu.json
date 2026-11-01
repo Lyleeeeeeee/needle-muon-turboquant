@@ -1,0 +1,47 @@
+{
+  "dataset": "MNIST",
+  "purpose": "framework integration smoke run",
+  "backend": "nd",
+  "device": "cpu()",
+  "optimizer": "AdamW",
+  "seed": 7,
+  "train_samples": 1024,
+  "eval_samples": 256,
+  "hidden_dim": 128,
+  "feature_dim": 64,
+  "learning_rate": 0.003,
+  "batch_size": 64,
+  "initial_validation_loss": 2.5073599815368652,
+  "initial_validation_accuracy": 0.109375,
+  "epochs": [
+    {
+      "epoch": 1,
+      "training_loss": 1.4010203517973423,
+      "validation_loss": 0.65030437707901,
+      "validation_accuracy": 0.80859375,
+      "training_seconds": 0.09120724978856742
+    },
+    {
+      "epoch": 2,
+      "training_loss": 0.5224612187594175,
+      "validation_loss": 0.5064012631773949,
+      "validation_accuracy": 0.83203125,
+      "training_seconds": 0.09018529090099037
+    },
+    {
+      "epoch": 3,
+      "training_loss": 0.2790580801665783,
+      "validation_loss": 0.3676893413066864,
+      "validation_accuracy": 0.890625,
+      "training_seconds": 0.0965286660939455
+    }
+  ],
+  "feature_shape": [
+    256,
+    64
+  ],
+  "environment": {
+    "numpy": "2.3.3",
+    "pytest": "9.0.3"
+  }
+}

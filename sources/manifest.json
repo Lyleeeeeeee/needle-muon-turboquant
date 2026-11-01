@@ -1,0 +1,142 @@
+{
+  "archives": [
+    {
+      "name": "hw1_src.tar.gz",
+      "source": "https://drive.google.com/file/d/1YrQEksA7YHKL5lM08yldeBtn_db5uCVB/view",
+      "sha256": "f60a97a6082cc08321efdc10482ea9c2df969997c8600deaef6084c649f37379"
+    },
+    {
+      "name": "hw2_src.tar.gz",
+      "source": "https://drive.google.com/file/d/1iozCNgUHXoEr7qQqpvTzm6-MUUu9WzYA/view",
+      "sha256": "fdd41e2ab9f506a09c45a6ba1e182158ef35ad07909efbe9d9631c259d80f74f"
+    },
+    {
+      "name": "hw3.tar.gz",
+      "source": "../hw3.tar.gz",
+      "sha256": "eab325334d0ffd5ee62ab8d0b8702ab451de21d0c062f5df3591ce4fca77b38c"
+    }
+  ],
+  "files": {
+    "python/needle/__init__.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "a34635bce092c5d433472db1b732857cbb3f5eb068a84d1ddf237be4428bf93e"
+    },
+    "python/needle/autograd.py": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "69a8a3c1f530f182e44c07b8a5b7d08013f111b1d8dc036f50f2130695e82d96",
+      "restored_functions_from_hw2": [
+        "compute_gradient_of_variables",
+        "find_topo_sort",
+        "topo_sort_dfs"
+      ]
+    },
+    "python/needle/backend_ndarray/__init__.py": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "4df44fc5dcfcdd8d6872a4090c30b1632ce9286eedc2e3a49bb938f71ced2d2b"
+    },
+    "python/needle/backend_ndarray/ndarray.py": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "9593b187e72617104134036213a8fb631f4a017d19f753fd268e525e4fada7df"
+    },
+    "python/needle/backend_ndarray/ndarray.py.before_permute": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "631f41a97cc4233eeebe623be117a64f371161ecf09bd01309bf62c51ff523d8"
+    },
+    "python/needle/backend_ndarray/ndarray.py.before_reshape": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "7bac70dfe0c0307da8d198975dcf9b60edf99d6cb0ec1b90e4264d8fcb93289a"
+    },
+    "python/needle/backend_ndarray/ndarray_backend_numpy.py": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "c7562ca266213be2ee52d8cae8644abfd1ea7b993db0827aeba26af87f348baa"
+    },
+    "python/needle/backend_numpy.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "ff0a6db95e142f8a856d6eb60329ffdb49fd784914a7886fdf05d13a7eb716f2"
+    },
+    "python/needle/backend_selection.py": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "9ad8a1b56ad92cfe84bb642ce7726cb8acc9bd788772ef3ef7c511deb4a4bdbe"
+    },
+    "python/needle/data/__init__.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "2a65385d45b915a0d04d2e0858115c8d2e3e08ef5b940bd464f2adac45a11e81"
+    },
+    "python/needle/data/data_basic.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "4ed0b36571e675da29ed1d81d0d0918b7c794c2ac68b0eec8407327026242b10"
+    },
+    "python/needle/data/data_transforms.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "cbce8de3dceab5004032b47ec49c755176e34cc36f17005199ba1312ae242f43"
+    },
+    "python/needle/data/datasets/__init__.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "10e9a8afdcd16a94bb45e3e531ecd3585dc861fbc9f94a719a63ac8568359af5"
+    },
+    "python/needle/data/datasets/mnist_dataset.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "db1cc70586601b0deeeee151f1713741d440feefd95d2ce545126bf3837c60d8"
+    },
+    "python/needle/data/datasets/ndarray_dataset.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "e1fb8ec8019d65755bdb862ce1db31c51b2301b0795492af80bd0a1d599e1036"
+    },
+    "python/needle/init/__init__.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "dd543102f79a83507a5d406b01e5b50e576b3af4a7fb931986e1f21f87469c43"
+    },
+    "python/needle/init/init_basic.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "a215e1a01e390619ca7237dd4398281585ff3fbaa87f0b5007cb7f3136ee89ba"
+    },
+    "python/needle/init/init_initializers.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "1ffaed46bc6460b6b9918ad9798232d2d896fe42749a5e7f81b93639a295d771"
+    },
+    "python/needle/nn/__init__.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "b5a020232bb81952f034a5b18b14d4424e03f0f9c3a5c002d60fbeef400e9495"
+    },
+    "python/needle/nn/nn_basic.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "29f55dab72d03d4c817f07dac9b9ff1ec3b313c0b4ae790d8e8784199511fa73"
+    },
+    "python/needle/ops/__init__.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "9df9e3262afb91a8ad11c693fe0f1de8039f79836bedc084e97e410dc4affb9e"
+    },
+    "python/needle/ops/ops_logarithmic.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "41136707bc174c103c29d35efbf4aca1311853876f0315bad8d79ce35f0ff9e5"
+    },
+    "python/needle/ops/ops_mathematic.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "4855cb79186d35080e35ebde88c2d357571d54da69e348688a2c886e9e545bb4"
+    },
+    "python/needle/ops/ops_tuple.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "0b017f646ccb9f9871d7fa0b50ab8122c4486fc18e08285c096a60a485151fa5"
+    },
+    "python/needle/optim.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "72b40c24a22bd1ba6bee4ee0a420fdd68fd2fd6bda537526c6a23a6aa608dda1"
+    },
+    "src/ndarray_backend_cpu.cc": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "352849a495ef3587d04684a71b06d432ac604116baf83d253aedee8e66675613"
+    },
+    "src/ndarray_backend_cuda.cu": {
+      "archive": "hw3.tar.gz",
+      "source_sha256": "6abde6e1e227e094e4dab7154e80841de557bc003d43dbecb24c8750289e8802"
+    },
+    "apps/mlp_resnet.py": {
+      "archive": "hw2_src.tar.gz",
+      "source_sha256": "7f645fb96ca88819cecb9e1d0a9ec8f6897ce7452d70df5a41609e82ecfd5278"
+    }
+  },
+  "notes": [
+    "HW2 already includes completed HW1 math and autodiff implementations; all three original archives are preserved.",
+    "Project-specific backend adaptations are separate from original snapshots."
+  ]
+}

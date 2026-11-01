@@ -16,7 +16,8 @@ from common import (SEEDS, aggregate_quality, distribution, select_configuration
                     validate_pair, validate_timed_pair)
 from benchmark_system import validate_measurements
 from benchmark_batch import summarize_batches
-from time_to_quality import TARGETS, THREADS, checkpoint_schedule, summarize_trajectories
+from time_to_quality import TARGETS, THREADS, checkpoint_schedule, first_crossing, summarize_trajectories
+from tune_batch512 import choose_rates, final_schedule, learning_rate_grid, summarize_runs
 
 STORES = {'fp32': 'FP32', 'uniform_2': 'Uniform 2-bit', 'uniform_4': 'Uniform 4-bit',
           'turbo_2': 'TurboQuant 2-bit', 'turbo_4': 'TurboQuant 4-bit'}
@@ -78,6 +79,29 @@ def quality_rows(study, quality, costs):
 
 def json_hash(protocol):
     return hashlib.sha256((json.dumps(protocol, indent=2, allow_nan=False) + '\n').encode()).hexdigest()
+
+
+def threshold_rows(summary, prefix=''):
+    rows = []
+    for result in summary['first_observed']:
+        for method, label in OPTIMIZERS.items():
+            hit = result[method]
+            cost, steps, precision = (hit[key] for key in ('training_seconds', 'steps', 'precision'))
+            rows.append(dict(
+                study=f"{prefix}First P@10 ≥ {100*result['target']:.0f}% ({hit['reached_count']}/3 reached)",
+                optimizer=label, store='FP32',
+                precision_mean=precision['mean'] if precision else None,
+                precision_sd=precision['sample_std'] if precision else None,
+                recall_mean=1. if precision else None, recall_sd=0. if precision else None,
+                gallery_bytes=14080000, compression=1.,
+                training_cost=cost['mean'] if cost else None,
+                training_sd=cost['sample_std'] if cost else None, training_unit='s', speedup=None,
+                query_mean=None, query_sd=None, precision_change_mean=0. if precision else None,
+                precision_change_sd=0. if precision else None,
+                updates_mean=steps['mean'] if steps else None,
+                updates_sd=steps['sample_std'] if steps else None,
+                optimizer_state_bytes=1139280 if method == 'adamw' else 975440))
+    return rows
 
 
 def validate_fresh_study(run, name):
@@ -221,26 +245,7 @@ def collect_time_to_quality_rows(run, baseline):
     summary = summarize_trajectories(records, p['targets'], p['training_seeds'])
     if summary != run['summary']:
         raise ValueError('Time-to-quality crossing summaries differ from raw trajectories')
-    rows = []
-    for result in summary['first_observed']:
-        for method, label in OPTIMIZERS.items():
-            hit = result[method]
-            cost, steps, precision = (hit[key] for key in ('training_seconds', 'steps', 'precision'))
-            rows.append(dict(
-                study=f"First P@10 ≥ {100*result['target']:.0f}% ({hit['reached_count']}/3 reached)",
-                optimizer=label, store='FP32',
-                precision_mean=precision['mean'] if precision else None,
-                precision_sd=precision['sample_std'] if precision else None,
-                recall_mean=1. if precision else None, recall_sd=0. if precision else None,
-                gallery_bytes=14080000, compression=1.,
-                training_cost=cost['mean'] if cost else None,
-                training_sd=cost['sample_std'] if cost else None, training_unit='s', speedup=None,
-                query_mean=None, query_sd=None, precision_change_mean=0. if precision else None,
-                precision_change_sd=0. if precision else None,
-                updates_mean=steps['mean'] if steps else None,
-                updates_sd=steps['sample_std'] if steps else None,
-                optimizer_state_bytes=1139280 if method == 'adamw' else 975440))
-    return rows
+    return threshold_rows(summary)
 
 
 def collect_batch_rows(run, baseline):
@@ -286,6 +291,114 @@ def collect_batch_rows(run, baseline):
                              updates_mean=metric['updates'], updates_sd=0,
                              optimizer_state_bytes=1139280 if method == 'adamw' else 975440))
     return rows
+
+
+def validate_tuned_curve(record, protocol, key):
+    """Validate complete or honestly truncated trajectories without ignored files."""
+    r, p = record, protocol
+    planned = p['snapshot_steps']
+    snapshots, curve = r['snapshots'], r[key]
+    steps = [s['steps'] for s in snapshots]
+    expected_state = 1139280 if r['optimizer'] == 'adamw' else 975440
+    training = {name: value for name, value in r.items() if name not in
+                ('curve', 'validation_curve', 'gallery_ids_sha256', 'query_ids_sha256',
+                 'query_source', 'training_record_sha256')}
+    if (r['protocol_sha256'] != json_hash(p) or r['training_record_sha256'] != json_hash(training)
+            or r['query_source'] != p['evaluation_split'] or not snapshots
+            or r['status'] not in ('complete', 'diverged') or steps != planned[:len(steps)]
+            or len(curve) != len(snapshots) or r['steps'] > p['max_steps']
+            or r['samples_seen'] != (r['steps'] // 108) * 55000 + (r['steps'] % 108) * 512
+            or r['total_parameter_count'] != 142410
+            or r['muon_parameter_count'] != (40960 if r['optimizer'] == 'muon' else 0)
+            or r['optimizer_numeric_state_bytes'] not in ([expected_state] if r['steps'] else [0, expected_state])
+            or snapshots[0]['parameter_sha256'] != r['initial_parameter_sha256']):
+        raise ValueError('Tuned trajectory budget, model, query source or provenance differs')
+    if r['status'] == 'complete' and (steps != planned or r['steps'] != p['max_steps']
+                                     or len(r['epoch_order_sha256']) != p['max_steps'] // 108):
+        raise ValueError('A complete tuned run did not finish the fixed training budget')
+    if (not math.isfinite(r['training_seconds']) or not math.isfinite(r['optimizer_seconds'])
+            or not 0 <= r['optimizer_seconds'] <= r['training_seconds'] <= r['acquisition_wall_seconds']
+            or not 0 <= r['checkpoint_seconds'] <= r['acquisition_wall_seconds']
+            or r['training_seconds'] < curve[-1]['training_seconds']):
+        raise ValueError('Invalid tuned training clock')
+    first_crossing(curve, 0.)  # Validate every observation, including ordered clocks.
+    for snap, point in zip(snapshots, curve):
+        histogram, matches = point['per_query_match_histogram'], point['same_category_matches']
+        if (any(point[name] != value for name, value in snap.items())
+                or snap['samples_seen'] != (snap['steps'] // 108) * 55000 + (snap['steps'] % 108) * 512
+                or len(histogram) != 11 or any(type(n) is not int or n < 0 for n in histogram)
+                or sum(histogram) != 1000 or type(matches) is not int
+                or matches != sum(i * n for i, n in enumerate(histogram))
+                or point['precision'] != matches / 10000
+                or not math.isfinite(point['evaluation_seconds']) or point['evaluation_seconds'] <= 0):
+            raise ValueError('Tuned retrieval metrics differ from the saved training snapshot or match counts')
+        for field in ('checkpoint_sha256', 'parameter_sha256', 'neighbor_indices_sha256'):
+            if len(point[field]) != 64 or set(point[field]) - set('0123456789abcdef'):
+                raise ValueError('Invalid tuned checkpoint/search hash')
+
+
+def collect_tuned512_rows(run, baseline):
+    tuning, final, selection = run['tuning'], run['final'], run['selection']
+    before = baseline['protocol']
+    if (run['tuning_run_sha256'] != json_hash(tuning) or run['final_run_sha256'] != json_hash(final)
+            or run['selection_sha256'] != json_hash(selection)
+            or selection['tuning_run_sha256'] != run['tuning_run_sha256']):
+        raise ValueError('Tuned phase or immutable selection differs from its sealed original')
+    expected = dict(dataset='Fashion-MNIST', study='tuned_batch512', smoke=False, batch_size=512,
+                    split_seed=17, train_rows=55000, validation_rows=5000, gallery_rows=55000, query_rows=1000,
+                    architecture=[784, 128, 128, 128, 64, 10], weight_decay=.01,
+                    candidate_grid=learning_rate_grid(), targets=list(TARGETS), gallery_format='fp32',
+                    search_metric='cosine', k=10, block_size=256, no_metric_based_stopping=True,
+                    offline_quality_workers=3, thread_limits=THREADS,
+                    selection_rule='max_normalized_trapezoidal_validation_P_at10_over_updates;tie_terminal_precision_then_id')
+    for name, phase in (('tuning', tuning), ('final', final)):
+        p = phase['protocol']
+        if (any(p.get(k) != value for k, value in expected.items()) or p['phase'] != name
+                or p['backend'] != before['backend'] or p['data_files_sha256'] != before['data_files_sha256']):
+            raise ValueError('Tuned batch512 protocol differs from the fixed experiment')
+        for path, sha in before['source_sha256'].items():
+            if path != 'experiments/run_report.py' and p['source_sha256'].get(path) != sha:
+                raise ValueError('Tuned study shared source differs: ' + path)
+    tp, fp = tuning['protocol'], final['protocol']
+    if (tp['source_sha256'] != fp['source_sha256'] or tp['training_seeds'] != [7]
+            or tp['evaluation_split'] != 'training_holdout' or tp['max_steps'] != 1620
+            or tp['snapshot_steps'] != [0, 108, 216, 324, 540, 864, 1080, 1620]
+            or fp['training_seeds'] != [8, 9, 10] or fp['max_steps'] != 10800
+            or fp['snapshot_steps'] != final_schedule() or fp['evaluation_split'] != 'official_test_exploratory'
+            or fp['selection_sha256'] != run['selection_sha256']
+            or fp['tuning_run_sha256'] != run['tuning_run_sha256']):
+        raise ValueError('Tuning/final phases or locked selection are incompatible')
+    chosen = choose_rates(tuning['candidates'])
+    if chosen != tuning['selected'] or chosen != selection['selected'] or chosen != fp['selected']:
+        raise ValueError('Final rates were not selected by the frozen validation-only rule')
+    ids = baseline['feature_metadata'][0]
+    candidates = tuning['candidates']
+    for r in candidates:
+        validate_tuned_curve(r, tp, 'validation_curve')
+        if (r['seed'] != 7 or r['gallery_ids_sha256'] != ids['gallery_ids_sha256']
+                or r['query_ids_sha256'] == ids['query_ids_sha256']):
+            raise ValueError('Tuning used the wrong gallery or final test-query selection')
+    for key in ('initial_parameter_sha256', 'train_indices_sha256', 'validation_indices_sha256', 'query_ids_sha256'):
+        if len({r[key] for r in candidates}) != 1:
+            raise ValueError('Tuning candidates used different starts or images')
+    original = training_by_seed(baseline['training_records'])
+    records = final['trajectories']
+    if len(records) != 6 or {(r['optimizer'], r['seed']) for r in records} != set(original):
+        raise ValueError('Expected six fresh paired final tuned runs')
+    for r in records:
+        validate_tuned_curve(r, fp, 'curve')
+        old = original[r['optimizer'], r['seed']]
+        if (r['candidate'] != chosen[r['optimizer']]['candidate']
+                or any(r[k] != old[k] for k in ('initial_parameter_sha256', 'train_indices_sha256', 'validation_indices_sha256'))
+                or r['gallery_ids_sha256'] != ids['gallery_ids_sha256'] or r['query_ids_sha256'] != ids['query_ids_sha256']):
+            raise ValueError('Final tuned learning rates, starts or retrieval IDs differ')
+        prefix = next((s for s in r['snapshots'] if s['steps'] == 1080), None)
+        if prefix and prefix['training_order_prefix_sha256'] != old['training_order_sha256']:
+            raise ValueError('Tuned data-order prefix differs from the original ten epochs')
+    summary = summarize_runs(records, fp['targets'], fp['training_seeds'])
+    if summary != final['summary']:
+        raise ValueError('Tuned target summaries differ from the raw final curves')
+    return threshold_rows(summary, 'Batch 512 / ')
 
 
 def collect_fresh_rows(data):
@@ -353,7 +466,8 @@ def collect_fresh_rows(data):
     if 'time_to_quality' in data:
         rows.extend(collect_time_to_quality_rows(data['time_to_quality'], data['studies']['epochs']))
     batch_rows = collect_batch_rows(data['batch_timing'], data['studies']['epochs']) if 'batch_timing' in data else []
-    return rows + checks + batch_rows
+    tuned_rows = collect_tuned512_rows(data['tuned_batch512'], data['studies']['epochs']) if 'tuned_batch512' in data else []
+    return rows + checks + batch_rows + tuned_rows
 
 
 def collect_rows(data):
@@ -538,6 +652,7 @@ def main():
     parser.add_argument('--time-to-quality-run', type=Path,
                         help='Attach a complete, validated time-to-quality run to the same evidence/table')
     parser.add_argument('--batch-run', type=Path, help='Attach fixed-image batch timing to the same evidence/table')
+    parser.add_argument('--tuned512-run', type=Path, help='Attach validation-tuned batch512 target comparisons')
     args = parser.parse_args()
     evidence = ROOT / 'report/results.json'
     data = json.loads(evidence.read_text())
@@ -551,6 +666,11 @@ def main():
         data['batch_timing'] = json.loads(path.read_text())
         data['provenance']['batch_raw_path'] = str(path.relative_to(ROOT))
         data['provenance']['batch_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if args.tuned512_run:
+        path = args.tuned512_run.resolve()
+        data['tuned_batch512'] = json.loads(path.read_text())
+        data['provenance']['tuned512_raw_path'] = str(path.relative_to(ROOT))
+        data['provenance']['tuned512_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
     rows = collect_rows(data)
     if json_hash(data['system']) != data['provenance']['system_raw_sha256']:
         raise ValueError('Curated systems data differs from its frozen raw report')
@@ -577,6 +697,13 @@ def main():
         for path, expected in run['protocol']['source_sha256'].items():
             if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
                 raise ValueError('Measured batch source changed: ' + path)
+    if 'tuned_batch512' in data:
+        run = data['tuned_batch512']
+        if json_hash(run) != data['provenance']['tuned512_raw_sha256']:
+            raise ValueError('Tuned batch512 evidence differs from its frozen raw run')
+        for path, expected in run['final']['protocol']['source_sha256'].items():
+            if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
+                raise ValueError('Measured tuned batch512 source changed: ' + path)
     for method in OPTIMIZERS:
         selection = data['locked_rate_selection']
         if select_configuration(selection['all_candidates'][method]) != selection['selected'][method]:
@@ -588,7 +715,7 @@ def main():
         print('Local artifact proof:', json.dumps(proof, sort_keys=True))
         if not args.check:
             data['provenance']['artifact_validation'] = proof
-    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run):
+    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run or args.tuned512_run):
         evidence.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
     readme = ROOT / 'README.md'
     current = readme.read_text()

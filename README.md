@@ -65,6 +65,14 @@ model/data/source/native hashes, paired differences and artifact-validation proo
 | Batch 256 / 32,768 images | Muon + aux AdamW | — | — | — | — | — | — | 98.658 ± 0.455 µs/image | 128 | 0.9754 | — |
 | Batch 512 / 32,768 images | AdamW | — | — | — | — | — | — | 62.721 ± 0.341 µs/image | 64 | 1.1393 | — |
 | Batch 512 / 32,768 images | Muon + aux AdamW | — | — | — | — | — | — | 77.458 ± 0.406 µs/image | 64 | 0.9754 | — |
+| Batch 512 / First P@10 ≥ 80% (3/3 reached) | AdamW | FP32 | 80.77 ± 0.37 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 3.429 ± 0.027 s | 108 | 1.1393 | — |
+| Batch 512 / First P@10 ≥ 80% (3/3 reached) | Muon + aux AdamW | FP32 | 80.95 ± 0.27 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 4.389 ± 0.150 s | 108 | 0.9754 | — |
+| Batch 512 / First P@10 ≥ 85% (3/3 reached) | AdamW | FP32 | 85.21 ± 0.20 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 25.162 ± 6.638 s | 792 ± 204 | 1.1393 | — |
+| Batch 512 / First P@10 ≥ 85% (3/3 reached) | Muon + aux AdamW | FP32 | 85.19 ± 0.19 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 25.100 ± 2.441 s | 630 ± 62 | 0.9754 | — |
+| Batch 512 / First P@10 ≥ 87% (3/3 reached) | AdamW | FP32 | 87.21 ± 0.16 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 93.711 ± 34.271 s | 2,952 ± 1,087 | 1.1393 | — |
+| Batch 512 / First P@10 ≥ 87% (3/3 reached) | Muon + aux AdamW | FP32 | 87.10 ± 0.10 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 173.610 ± 72.104 s | 4,392 ± 1,811 | 0.9754 | — |
+| Batch 512 / First P@10 ≥ 88% (3/3 reached) | AdamW | FP32 | 88.20 ± 0.18 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 191.401 ± 65.940 s | 6,048 ± 2,083 | 1.1393 | — |
+| Batch 512 / First P@10 ≥ 88% (0/3 reached) | Muon + aux AdamW | FP32 | — | — | — | 14.0800 | 1.00× | — | — | 0.9754 | — |
 <!-- RESULTS:END -->
 
 Measured takeaways:
@@ -79,9 +87,9 @@ Measured takeaways:
   validation-loss checkpoint rule its FP32 precision is higher by 0.14 points
   at ten epochs and 0.37 points at equal time, winning two of three seeds in
   each comparison. The terminal 220-second check favors AdamW by 0.93 points,
-  with Muon winning zero of three seeds. This CPU study has not established a
+  with Muon winning zero of three seeds. This batch-64 study has not established a
   robust equal-time retrieval advantage for Muon.
-- Direct retrieval targets show a step-efficiency benefit without a time saving:
+- At batch 64, direct retrieval targets show a step-efficiency benefit without a time saving:
   Muon needs 20.0%, 8.2% and 11.3% fewer updates on average to first observe
   85%, 87% and 88% P@10, respectively. Ratios of mean training seconds are still
   1.64×, 1.88× and 1.81× AdamW. Muon takes longer in all 12 paired seed/target
@@ -95,8 +103,19 @@ Measured takeaways:
   fall from 2.04× to 1.43× to 1.23×. The excess decreases from 117.65 to 14.74 µs
   per image, an 87.5% reduction. Muon's optimizer still costs about 10.5–10.7 ms
   per update; larger batches share that cost across more images. Both optimizers
-  gain throughput, and AdamW remains faster at each matched batch. Retrieval
-  convergence at the larger batches has not been measured.
+  gain throughput, and AdamW remains faster at each matched batch. These timings
+  measure throughput; the validation-tuned follow-up evaluates retrieval
+  convergence separately.
+- With validation-selected batch-512 rates, first-observed 85% retrieval costs
+  are essentially tied: AdamW 25.16 ± 6.64 s versus Muon 25.10 ± 2.44 s. Muon
+  uses 20.5% fewer updates on average but wins only one of three paired timing
+  comparisons; a 0.06 s mean gap is smaller than the observation interval and
+  seed variation. At 87%, AdamW needs 93.71 ± 34.27 s and Muon 173.61 ± 72.10 s,
+  with all three pairs favoring AdamW. At 88%, AdamW reaches the target in all
+  three runs and Muon reaches it in none within 100 epochs. The two-consecutive
+  85% check mildly favors Muon's mean (27.31 versus 29.71 s; two of three wins),
+  while higher targets still favor AdamW. This declared rate grid and small CPU
+  model do not establish a robust overall Muon retrieval-time advantage.
 - The three systems changes accelerate complete fixed-work updates by 1.435×
   for AdamW and 1.749× for Muon, preserving exact outputs. Muon's optimizer
   computation remains more expensive per update in this small CPU model.
@@ -109,9 +128,11 @@ steps and training seconds to first observe each retrieval target; the study
 label includes the reach count. A dash for an incomplete target means that not
 all three seeds reached it within 43,000 updates. The next four FP32 rows check
 the original terminal models, followed by four original-to-final CPU systems
-rows with fixed work and exact output parity. The final six rows compare batch
+rows with fixed work and exact output parity. The next six rows compare batch
 64/256/512 training costs in **microseconds per image**, with five timing
-repetitions per configuration; they do not measure retrieval quality.
+repetitions per configuration; they do not measure retrieval quality. The last
+eight rows use batch 512 with validation-selected rates and report retrieval
+target crossings on three fresh paired training seeds.
 
 P@10 is the fraction of the ten returned images sharing the query category.
 Δ is its signed change against the same encoder's FP32 store, in percentage
@@ -143,7 +164,7 @@ show whether that rule changes the retrieval comparison; model selection never
 uses the reported test-query retrieval results. Historical test images were
 already explored during the project, so this is an exploratory benchmark.
 
-The time-to-quality follow-up measures retrieval P@10 directly. Both optimizers
+The batch-64 time-to-quality follow-up measures retrieval P@10 directly. Both optimizers
 start fresh at each paired seed and train for 50 epochs (43,000 updates), with
 the same locked model, learning rates and final CPU binary. Targets 80%, 85%,
 87% and 88% are fixed before training. Snapshots include initialization, every
@@ -179,6 +200,31 @@ also separate optimizer time from the remaining training-loop time. Repeated
 outputs must match within each configuration; different batches and optimizers
 have different parameter trajectories. Larger-batch throughput alone does not
 establish faster training to the same retrieval target.
+
+The tuned batch-512 study searches three configurations per optimizer at seed 7,
+each for 15 epochs. AdamW rates are 0.001/0.003/0.01. Muon main/auxiliary rates
+are (0.007, 0.001), (0.021, 0.003) and (0.07, 0.01), so its input/head/bias
+updates are tuned too. Retrieval queries during tuning are 1,000 fixed images
+from the 5,000-image training holdout; the 55,000-image gallery excludes them.
+Rates maximize the normalized trapezoidal area of validation P@10 versus
+updates at epochs 0/1/2/3/5/8/10/15, with terminal precision and candidate ID as
+tie-breakers. All candidates and numerical failures remain in the evidence.
+The immutable selection binds the tuning report hash before final training.
+This rule selected AdamW 0.003 and Muon main 0.007/auxiliary AdamW 0.001;
+those rates remain fixed for all final seeds and retrieval targets.
+The three tuning candidates consume 155.27 training-loop seconds for AdamW and
+190.59 for Muon, plus separately recorded offline validation evaluation.
+
+Selected batch-512 configurations start fresh on seeds 8/9/10 and each run for
+100 epochs (10,800 updates; 5.5 million images). The shared upper budget is fixed
+before seeing final retrieval results. Snapshots occur every 54 updates through
+1,080, then every 216 through 10,800, including initialization. Final evaluation
+uses the same historically explored official-test query images as the earlier
+studies, with first-observed and two-consecutive target crossings. Training is
+sequential; offline quality workers run only after the phase's training ends.
+Tuning cost is retained separately from the selected model's training-to-target
+cost. Numerical failures retain their actual observation prefix; failed or
+unreached seeds are never silently removed from a mean.
 
 The systems rows report the median of five alternating sequential process pairs,
 each measuring 128 complete updates at seed 8/batch 64. Parenthetical speedup is
@@ -260,6 +306,9 @@ python experiments/time_to_quality.py --output-dir results/reproduction/time_to_
 # Fixed-image per-image training costs at batches 64/256/512.
 python experiments/benchmark_batch.py --output-dir results/reproduction/batch_cost
 
+# Validation-only rate search, immutable selection, then paired batch-512 curves.
+python experiments/tune_batch512.py --output-dir results/reproduction/tuned_batch512
+
 # Optional fixed-gradient optimizer profile.
 python experiments/profile_optimizer.py --output results/profile.json
 
@@ -284,6 +333,7 @@ The original-workspace trajectory can be attached to the same evidence/table
 with `python tools/build_report.py --time-to-quality-run results/time_to_quality_20261101/run.json`;
 shared sources, data, starts, native binary and reference hashes must match.
 The batch diagnostic similarly uses `python tools/build_report.py --batch-run results/batch_cost_20261101/run.json`.
+The tuned follow-up uses `python tools/build_report.py --tuned512-run results/tuned_batch512_20261101/run.json`.
 The maintained tree contains the framework/kernels, six app modules,
-six experiment modules, two tools, relevant tests and this single
+seven experiment modules, two tools, relevant tests and this single
 report dataset/table. Earlier exploratory work remains in Git history.

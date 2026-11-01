@@ -1,0 +1,143 @@
+{
+  "source": "Fashion-MNIST_frozen_encoder_7618113bd82b",
+  "methods": [
+    "turbo_2",
+    "turbo_4"
+  ],
+  "gallery_shape": [
+    55000,
+    64
+  ],
+  "query_shape": [
+    1000,
+    64
+  ],
+  "similarity": "cosine_on_decoded_vectors",
+  "search_metric": "cosine",
+  "ground_truth_metric": "cosine",
+  "seed": 8,
+  "k": 10,
+  "block_size": 256,
+  "repeats": 3,
+  "query_timing_scope": "query preparation/rotation, block decode, Needle matmul and top-k; cosine includes Needle query/block normalization; excludes feature extraction and build",
+  "rss_scope": "entire isolated worker including input loading, build, quality checks, serialization and query",
+  "buffer_scope": "persistent numerical buffers; excludes Python objects and allocator overhead",
+  "block_scope": "decoded and score arrays only; excludes normalization, matmul packing/workspace and top-k merge arrays",
+  "environment": {
+    "python": "3.13.5",
+    "platform": "macOS-14.6.1-arm64-arm-64bit-Mach-O",
+    "numpy": "2.3.3",
+    "scipy": "1.16.2"
+  },
+  "results": [
+    {
+      "method": "turbo_2",
+      "device": "cpu()",
+      "search_metric": "cosine",
+      "normalization_timed": true,
+      "stored_bytes": 1116400,
+      "storage_breakdown": {
+        "codes": 880000,
+        "norms": 220000,
+        "rotation": 16384,
+        "codebook": 16
+      },
+      "serialized_bytes": 1117912,
+      "setup_seconds": 0.0013269579503685236,
+      "build_seconds": 0.05887845787219703,
+      "query_seconds": [
+        2.1986089998390526,
+        2.1985424591694027,
+        2.2150039579719305
+      ],
+      "query_seconds_median": 2.1986089998390526,
+      "relative_reconstruction_mse": 0.11646248068344225,
+      "recall_at_k": 0.43789999999999996,
+      "label_precision_at_k": 0.8554,
+      "query_prefix_quality": [
+        {
+          "query_count": 256,
+          "recall_at_k": 0.435546875,
+          "label_precision_at_k": 0.854296875
+        },
+        {
+          "query_count": 1000,
+          "recall_at_k": 0.43789999999999996,
+          "label_precision_at_k": 0.8554
+        }
+      ],
+      "max_decoded_block_bytes": 65536,
+      "max_score_block_bytes": 1024000,
+      "process_peak_rss_bytes": 242089984,
+      "codebook_setup_seconds": 0.0009994159918278456,
+      "rotation_setup_seconds": 0.00031770789064466953,
+      "compression_ratio_vs_fp32": 12.611967036904336
+    },
+    {
+      "method": "turbo_4",
+      "device": "cpu()",
+      "search_metric": "cosine",
+      "normalization_timed": true,
+      "stored_bytes": 1996448,
+      "storage_breakdown": {
+        "codes": 1760000,
+        "norms": 220000,
+        "rotation": 16384,
+        "codebook": 64
+      },
+      "serialized_bytes": 1997960,
+      "setup_seconds": 0.016520791919901967,
+      "build_seconds": 0.08327883388847113,
+      "query_seconds": [
+        2.2129689580760896,
+        2.223527707858011,
+        2.223607457941398
+      ],
+      "query_seconds_median": 2.223527707858011,
+      "relative_reconstruction_mse": 0.009096163801069706,
+      "recall_at_k": 0.7572000000000001,
+      "label_precision_at_k": 0.8565,
+      "query_prefix_quality": [
+        {
+          "query_count": 256,
+          "recall_at_k": 0.7582031250000001,
+          "label_precision_at_k": 0.848046875
+        },
+        {
+          "query_count": 1000,
+          "recall_at_k": 0.7572000000000001,
+          "label_precision_at_k": 0.8565
+        }
+      ],
+      "max_decoded_block_bytes": 65536,
+      "max_score_block_bytes": 1024000,
+      "process_peak_rss_bytes": 250249216,
+      "codebook_setup_seconds": 0.01614979188889265,
+      "rotation_setup_seconds": 0.00035799993202090263,
+      "compression_ratio_vs_fp32": 7.052525284905993
+    }
+  ],
+  "provenance": {
+    "encoder": "muon",
+    "training_seed": 8,
+    "rotation_seed": 8,
+    "checkpoint_sha256": "7618113bd82b7451de92fdf1c8e38ed5c625296cc2ea7b6bc73cc7fae557fe30",
+    "feature_archive_sha256": "d2582ca992885c252ff406bfaf7991005e300e66dcc06e3cbada0e5f0e5860e3",
+    "gallery_ids_sha256": "ae8b27a59debaf0fc930b6708607e27550b8bd4bf6ca3aed465568b06a0ac00b",
+    "query_ids_sha256": "46aab3870151afe263c975abe3b9c17074d295942d7af9fd884fcd11bf8f15d6",
+    "source_sha256": {
+      "apps/export_features.py": "39b735e2f3c818faea8a90a10587ea4120becb6b399abf5b943c441db1c8199c",
+      "apps/benchmark_quantization.py": "7284466bb88f43b2ca16a96ea1ac884a2d1de51626278802e617aa1a424faf22",
+      "apps/models.py": "758c68183c1318551568ac8e76421eb586c6638a76dbed49397dd5ec9a5067e6",
+      "apps/encoder_checkpoint.py": "a3ce33c0c4db397e7b63f15514a8aa2ebe8613f321220da58f5ab3418588bf57",
+      "python/needle/quantization.py": "559555f26723454e0041f5914ee00c7cdfd719afce819995cb92d8a4529dad8a",
+      "src/ndarray_backend_cpu.cc": "46cae62821d42a596d7ecf8b811832f19cb7cfeb1aea9bf1d24e0a75bdfe2d26",
+      "src/quantization_cpu.h": "03b34cbc88dd79de14fdbb92297e4f09fa8b177c43c4dd432ba61e2c2a2b36a2",
+      "experiments/run_joint_retrieval.py": "7e59f84f4cd29a49060da40f7f3cc7b004a2f9a7aac0d163efccd76c53a2fd37",
+      "apps/train_timed.py": "071b6c0d08abbcaa5d851553160354d7f2e0b8fd7d2d652491c97dd49ed886e0",
+      "apps/train_baseline.py": "87e5f2f1d913620b58e4911efeb3cd748575b5e1470aa6772919a820b24d45a1",
+      "python/needle/optim.py": "c677ba6a09c69c09c445acbf40a14e38026624bedbcd51bb9fcf2d58f6754651",
+      "experiments/run_time_budget_study.py": "bff3a5e4544858a31b17e1afb58f77fcf9a5e2606f2592c0f7984f94dda79a8e"
+    }
+  }
+}

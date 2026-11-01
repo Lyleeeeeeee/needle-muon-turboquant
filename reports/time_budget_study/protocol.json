@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-01",
+  "budget_seconds": 220.0,
+  "architecture": [
+    784,
+    128,
+    128,
+    128,
+    64,
+    10
+  ],
+  "batch_size": 64,
+  "training_seeds": [
+    8,
+    9,
+    10
+  ],
+  "train_rows": 55000,
+  "validation_rows": 5000,
+  "split_seed": 17,
+  "checkpoint_targets_seconds": [
+    55,
+    110,
+    165,
+    220
+  ],
+  "selection": "minimum_validation_loss_among_four_common_time_candidates",
+  "adamw_or_auxiliary_lr": 0.001,
+  "muon_lr": 0.007,
+  "weight_decay": 0.01,
+  "learning_rates_from": "reports/depth_study/selection.json",
+  "budget_policy": "includes_intermediate_validation_and_save;excludes_setup_and_final_eval",
+  "source_sha256": {
+    "apps/train_timed.py": "071b6c0d08abbcaa5d851553160354d7f2e0b8fd7d2d652491c97dd49ed886e0",
+    "apps/train_baseline.py": "87e5f2f1d913620b58e4911efeb3cd748575b5e1470aa6772919a820b24d45a1",
+    "apps/models.py": "758c68183c1318551568ac8e76421eb586c6638a76dbed49397dd5ec9a5067e6",
+    "apps/encoder_checkpoint.py": "a3ce33c0c4db397e7b63f15514a8aa2ebe8613f321220da58f5ab3418588bf57",
+    "python/needle/optim.py": "c677ba6a09c69c09c445acbf40a14e38026624bedbcd51bb9fcf2d58f6754651",
+    "experiments/run_time_budget_study.py": "bff3a5e4544858a31b17e1afb58f77fcf9a5e2606f2592c0f7984f94dda79a8e",
+    "experiments/run_joint_retrieval.py": "7e59f84f4cd29a49060da40f7f3cc7b004a2f9a7aac0d163efccd76c53a2fd37"
+  }
+}

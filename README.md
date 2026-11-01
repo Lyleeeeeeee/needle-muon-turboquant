@@ -184,6 +184,26 @@ compares both encoders and both architectures, with training cost and compressio
 loss separate from absolute retrieval quality. This comparison changes depth,
 parameter count and compute; it cannot isolate Muon coverage as a causal effect.
 
+## Equal-time training and optimizer profiling
+
+The [equal-time protocol](docs/time_budget_design.md) gives each existing tuned
+deep encoder 220 seconds, with four common-time validation checkpoints and three
+paired training seeds. The [report](reports/time_budget_study/summary.md) compares
+retrieval after validation-based selection, and separates optimizer update costs
+from other training work. A fixed-gradient microbenchmark diagnoses Muon's
+Newton-Schulz products, native matrix kernels and layout compaction separately.
+
+```bash
+python experiments/run_time_budget_study.py --phase all
+python experiments/profile_optimizer.py
+python experiments/summarize_time_budget_study.py
+```
+
+Intermediate validation/checkpoint costs count toward the training budget;
+setup and terminal evaluation/export do not. Previously selected learning rates
+are retained, so this is not a new equal-time hyperparameter search. Historical
+epoch-budget records and all optimizer/quantizer formulas remain unchanged.
+
 ## Verification and scope
 
 Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.

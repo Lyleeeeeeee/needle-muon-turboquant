@@ -25,7 +25,8 @@ def test_fresh_table_has_complete_cross_products_and_explicit_resource_costs():
     from build_report import collect_fresh_rows
 
     rows = collect_fresh_rows(fresh_evidence())
-    assert len(rows) == 28
+    data = fresh_evidence()
+    assert len(rows) == 28 + (8 if 'time_to_quality' in data else 0)
     for name in ('10 epochs / final CPU', '220s / final CPU'):
         main = [r for r in rows if r['study'] == name]
         assert {(r['optimizer'], r['store']) for r in main} == {

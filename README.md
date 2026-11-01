@@ -43,6 +43,14 @@ model/data/source/native hashes, paired differences and artifact-validation proo
 | 220s / final CPU | Muon + aux AdamW | Uniform 4-bit | 86.46 ± 0.89 | -0.02 ± 0.08 | 77.02 ± 1.99 | 2.2000 | 6.40× | 220.004 ± 0.004 s | 21,108 ± 523 | 0.9754 | 1.948 ± 0.091 |
 | 220s / final CPU | Muon + aux AdamW | TurboQuant 2-bit | 86.30 ± 0.75 | -0.17 ± 0.14 | 44.95 ± 0.51 | 1.1164 | 12.61× | 220.004 ± 0.004 s | 21,108 ± 523 | 0.9754 | 1.948 ± 0.076 |
 | 220s / final CPU | Muon + aux AdamW | TurboQuant 4-bit | 86.47 ± 0.77 | -0.01 ± 0.12 | 75.74 ± 0.28 | 1.9964 | 7.05× | 220.004 ± 0.004 s | 21,108 ± 523 | 0.9754 | 1.952 ± 0.058 |
+| First P@10 ≥ 80% (3/3 reached) | AdamW | FP32 | 80.53 ± 0.30 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 3.093 ± 0.020 s | 430 | 1.1393 | — |
+| First P@10 ≥ 80% (3/3 reached) | Muon + aux AdamW | FP32 | 80.86 ± 0.37 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 6.322 ± 0.013 s | 430 | 0.9754 | — |
+| First P@10 ≥ 85% (3/3 reached) | AdamW | FP32 | 85.28 ± 0.24 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 30.690 ± 5.113 s | 4,300 ± 745 | 1.1393 | — |
+| First P@10 ≥ 85% (3/3 reached) | Muon + aux AdamW | FP32 | 85.18 ± 0.02 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 50.295 ± 6.291 s | 3,440 ± 430 | 0.9754 | — |
+| First P@10 ≥ 87% (3/3 reached) | AdamW | FP32 | 87.14 ± 0.06 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 100.627 ± 6.575 s | 14,047 ± 993 | 1.1393 | — |
+| First P@10 ≥ 87% (3/3 reached) | Muon + aux AdamW | FP32 | 87.23 ± 0.10 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 189.132 ± 14.248 s | 12,900 ± 860 | 0.9754 | — |
+| First P@10 ≥ 88% (3/3 reached) | AdamW | FP32 | 88.22 ± 0.16 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 199.223 ± 62.218 s | 27,807 ± 8,784 | 1.1393 | — |
+| First P@10 ≥ 88% (3/3 reached) | Muon + aux AdamW | FP32 | 88.14 ± 0.05 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 360.914 ± 113.812 s | 24,653 ± 7,803 | 0.9754 | — |
 | 10 epochs / terminal check | AdamW | FP32 | 86.10 ± 0.21 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 43.566 ± 0.521 s | 8,600 | 1.1393 | 1.901 ± 0.042 |
 | 10 epochs / terminal check | Muon + aux AdamW | FP32 | 85.97 ± 0.46 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 88.760 ± 2.179 s | 8,600 | 0.9754 | 1.893 ± 0.072 |
 | 220s / terminal check | AdamW | FP32 | 88.52 ± 0.08 | +0.00 ± 0.00 | 100.00 ± 0.00 | 14.0800 | 1.00× | 220.002 ± 0.001 s | 44,069 ± 303 | 1.1393 | 1.885 ± 0.044 |
@@ -67,6 +75,14 @@ Measured takeaways:
   each comparison. The terminal 220-second check favors AdamW by 0.93 points,
   with Muon winning zero of three seeds. This CPU study has not established a
   robust equal-time retrieval advantage for Muon.
+- Direct retrieval targets show a step-efficiency benefit without a time saving:
+  Muon needs 20.0%, 8.2% and 11.3% fewer updates on average to first observe
+  85%, 87% and 88% P@10, respectively. Ratios of mean training seconds are still
+  1.64×, 1.88× and 1.81× AdamW. Muon takes longer in all 12 paired seed/target
+  comparisons, including 80%. Requiring two consecutive qualifying observations
+  preserves that wall-time ordering in all 12 comparisons. Both methods already
+  exceed 80% at the first 430-update check, so that target does not resolve their
+  first crossing more finely.
 - The three systems changes accelerate complete fixed-work updates by 1.435×
   for AdamW and 1.749× for Muon, preserving exact outputs. Muon's optimizer
   computation remains more expensive per update in this small CPU model.
@@ -74,9 +90,12 @@ Measured takeaways:
 The first 20 rows are the full optimizer × gallery-format comparison, under equal
 training exposure (10 epochs) and equal wall time (220 seconds). Each trained
 encoder supplies all five gallery stores; repeated training costs in those rows
-do not represent five separate training runs. The next four FP32 rows check the
-terminal models. The last four rows isolate the original-to-final CPU systems
-improvement with fixed work and exact output parity.
+do not represent five separate training runs. The next eight rows measure the
+steps and training seconds to first observe each retrieval target; the study
+label includes the reach count. A dash for an incomplete target means that not
+all three seeds reached it within 43,000 updates. The next four FP32 rows check
+the original terminal models. The last four rows isolate the original-to-final
+CPU systems improvement with fixed work and exact output parity.
 
 P@10 is the fraction of the ten returned images sharing the query category.
 Δ is its signed change against the same encoder's FP32 store, in percentage
@@ -107,6 +126,30 @@ validation loss, sampled at epoch boundaries or the four common times
 show whether that rule changes the retrieval comparison; model selection never
 uses the reported test-query retrieval results. Historical test images were
 already explored during the project, so this is an exploratory benchmark.
+
+The time-to-quality follow-up measures retrieval P@10 directly. Both optimizers
+start fresh at each paired seed and train for 50 epochs (43,000 updates), with
+the same locked model, learning rates and final CPU binary. Targets 80%, 85%,
+87% and 88% are fixed before training. Snapshots include initialization, every
+430 updates through 8,600, then every 860 through 43,000. All snapshots are
+evaluated offline against the same 55,000-image gallery and 1,000 queries using
+FP32 cosine search. There is no retrieval-based early stopping or retuning.
+
+First-observed crossing costs use that snapshot's cumulative training-loop
+seconds and actual update count. They include all Muon orthogonalization work;
+snapshot I/O and offline feature extraction/search are recorded separately.
+These are sampled crossings: the exact first qualifying update is unknown
+between observations, and a crossing may later revert. The evidence also
+reports a two-consecutive-observation sensitivity check, charging training
+through the second confirming snapshot. Unreached targets remain censored at
+43,000 updates, with reach counts and individual outcomes; incomplete samples
+never receive a success-only mean. Compare freshly paired timings within this
+follow-up rather than multiplying its steps by older timing measurements.
+The six training trajectories run sequentially. Offline quality evaluation uses
+three independent processes after all training timings are complete; its
+monitoring durations are not query-performance benchmarks. All six 8,600-update
+snapshots must reproduce the earlier terminal parameter arrays and retrieval
+precision exactly.
 
 The systems rows report the median of five alternating sequential process pairs,
 each measuring 128 complete updates at seed 8/batch 64. Parenthetical speedup is
@@ -182,6 +225,9 @@ python experiments/benchmark_system.py --blocks 5 --output results/reproduction/
 python experiments/run_report.py --study epochs --checkpoint best --checkpoint-check --resume --seeds 8 9 10 --output-dir results/reproduction/epochs
 python experiments/run_report.py --study timed --checkpoint best --checkpoint-check --resume --seeds 8 9 10 --output-dir results/reproduction/timed
 
+# Direct retrieval learning curves and fixed-target crossing summaries.
+python experiments/time_to_quality.py --output-dir results/reproduction/time_to_quality
+
 # Optional fixed-gradient optimizer profile.
 python experiments/profile_optimizer.py --output results/profile.json
 
@@ -200,6 +246,11 @@ artifacts, `python tools/build_report.py --check --verify-history --verify-artif
 also reloads every selected and terminal checkpoint, reproduces full validation,
 checks all common image IDs/labels, reproduces gallery/query feature samples
 and compares retained metrics with original worker output. Its proof is recorded
-in the evidence. The maintained tree contains the framework/kernels, six app
-modules, four experiment modules, two tools, relevant tests and this single
+in the evidence. To audit a fresh trajectory against an existing ten-epoch run,
+pass `--reference-study results/reproduction/epochs` to `time_to_quality.py`.
+The original-workspace trajectory can be attached to the same evidence/table
+with `python tools/build_report.py --time-to-quality-run results/time_to_quality_20261101/run.json`;
+shared sources, data, starts, native binary and reference hashes must match.
+The maintained tree contains the framework/kernels, six app modules,
+five experiment modules, two tools, relevant tests and this single
 report dataset/table. Earlier exploratory work remains in Git history.

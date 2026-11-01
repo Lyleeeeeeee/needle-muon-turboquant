@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / 'experiments'))
 from common import (SEEDS, aggregate_quality, distribution, select_configuration,
                     validate_pair, validate_timed_pair)
 from benchmark_system import validate_measurements
+from time_to_quality import TARGETS, checkpoint_schedule, summarize_trajectories
 
 STORES = {'fp32': 'FP32', 'uniform_2': 'Uniform 2-bit', 'uniform_4': 'Uniform 4-bit',
           'turbo_2': 'TurboQuant 2-bit', 'turbo_4': 'TurboQuant 4-bit'}
@@ -148,6 +149,99 @@ def validate_fresh_study(run, name):
     return quality, check, indexed, common_ids
 
 
+def collect_time_to_quality_rows(run, baseline):
+    """Validate sampled crossings and keep censored runs visible in the same table."""
+    p, before = run['protocol'], baseline['protocol']
+    expected = dict(dataset='Fashion-MNIST', study='time_to_retrieval_quality', smoke=False,
+                    training_seeds=list(SEEDS), max_steps=43000, targets=list(TARGETS),
+                    snapshot_steps=checkpoint_schedule(43000), train_rows=55000,
+                    validation_rows=5000, gallery_rows=55000, query_rows=1000,
+                    architecture=[784, 128, 128, 128, 64, 10], batch_size=64, split_seed=17,
+                    rates={'adamw_auxiliary': .001, 'muon': .007}, weight_decay=.01,
+                    gallery_format='fp32', search_metric='cosine', k=10, block_size=256,
+                    no_metric_based_stopping=True)
+    if any(p.get(k) != v for k, v in expected.items()):
+        raise ValueError('Time-to-quality protocol differs from the locked comparison')
+    if p['backend'] != before['backend'] or p['data_files_sha256'] != before['data_files_sha256']:
+        raise ValueError('Time-to-quality backend or data differs from the original study')
+    for name, sha in before['source_sha256'].items():
+        if name != 'experiments/run_report.py' and p['source_sha256'].get(name) != sha:
+            raise ValueError('Time-to-quality shared source differs: ' + name)
+    original = training_by_seed(baseline['training_records'])
+    originals = {(r['encoder'], r['training_seed']): r for r in baseline['checkpoint_check_rows']}
+    image_ids = tuple(baseline['feature_metadata'][0][key] for key in ('gallery_ids_sha256', 'query_ids_sha256'))
+    records = run['trajectories']
+    if (len(records) != 6 or {(r['optimizer'], r['seed']) for r in records}
+            != {(m, s) for m in OPTIMIZERS for s in SEEDS}):
+        raise ValueError('Expected six complete unique time-to-quality trajectories')
+    for r in records:
+        key = r['optimizer'], r['seed']
+        old = original[key]
+        if (r['protocol_sha256'] != json_hash(p)
+                or tuple(r[k] for k in ('gallery_ids_sha256', 'query_ids_sha256')) != image_ids
+                or any(r[k] != old[k] for k in ('initial_parameter_sha256', 'train_indices_sha256',
+                                               'validation_indices_sha256', 'total_parameter_count',
+                                               'muon_parameter_count', 'optimizer_numeric_state_bytes'))):
+            raise ValueError('Time-to-quality model, image selection or provenance differs')
+        training = {k: v for k, v in r.items() if k not in
+                    ('curve', 'gallery_ids_sha256', 'query_ids_sha256', 'training_record_sha256')}
+        if json_hash(training) != r['training_record_sha256']:
+            raise ValueError('Time-to-quality training record differs from its sealed original')
+        if (r['steps'] != 43000 or r['samples_seen'] != 2750000
+                or len(r['epoch_order_sha256']) != 50
+                or r['snapshots'][0]['parameter_sha256'] != r['initial_parameter_sha256']
+                or r['training_seconds'] != r['curve'][-1]['training_seconds']
+                or not 0 < r['optimizer_seconds'] <= r['training_seconds'] <= r['acquisition_wall_seconds']
+                or not 0 <= r['checkpoint_seconds'] <= r['acquisition_wall_seconds']):
+            raise ValueError('Incomplete time-to-quality training budget or invalid clock')
+        for rows in (r['snapshots'], r['curve']):
+            if [s['steps'] for s in rows] != p['snapshot_steps']:
+                raise ValueError('Missing time-to-quality observation')
+        for snap, point in zip(r['snapshots'], r['curve']):
+            if any(point[k] != value for k, value in snap.items()):
+                raise ValueError('Retrieval observation refers to a different training snapshot')
+            histogram, matches = point['per_query_match_histogram'], point['same_category_matches']
+            if (len(histogram) != 11 or any(type(n) is not int or n < 0 for n in histogram)
+                    or sum(histogram) != 1000 or type(matches) is not int
+                    or matches != sum(i * n for i, n in enumerate(histogram))
+                    or point['precision'] != matches / 10000
+                    or not math.isfinite(point['evaluation_seconds']) or point['evaluation_seconds'] <= 0
+                    or snap['samples_seen'] != (snap['steps'] // 860) * 55000 + (snap['steps'] % 860) * 64):
+                raise ValueError('Retrieval precision or sample counts do not match raw observations')
+            for field in ('checkpoint_sha256', 'parameter_sha256', 'neighbor_indices_sha256'):
+                if len(point[field]) != 64 or set(point[field]) - set('0123456789abcdef'):
+                    raise ValueError('Invalid archived snapshot or search hash')
+        reference = next(s for s in r['curve'] if s['steps'] == 8600)
+        if (reference.get('reference_terminal_arrays_equal') is not True
+                or reference['training_order_prefix_sha256'] != old['training_order_sha256']
+                or reference['precision'] != originals[key]['label_precision_at_k']
+                or p['reference_checkpoints'][f'{key[0]}_seed{key[1]}']['sha256'] != old['terminal_checkpoint_sha256']):
+            raise ValueError('8600-update parameter, order or retrieval reference check failed')
+    summary = summarize_trajectories(records, p['targets'], p['training_seeds'])
+    if summary != run['summary']:
+        raise ValueError('Time-to-quality crossing summaries differ from raw trajectories')
+    rows = []
+    for result in summary['first_observed']:
+        for method, label in OPTIMIZERS.items():
+            hit = result[method]
+            cost, steps, precision = (hit[key] for key in ('training_seconds', 'steps', 'precision'))
+            rows.append(dict(
+                study=f"First P@10 ≥ {100*result['target']:.0f}% ({hit['reached_count']}/3 reached)",
+                optimizer=label, store='FP32',
+                precision_mean=precision['mean'] if precision else None,
+                precision_sd=precision['sample_std'] if precision else None,
+                recall_mean=1. if precision else None, recall_sd=0. if precision else None,
+                gallery_bytes=14080000, compression=1.,
+                training_cost=cost['mean'] if cost else None,
+                training_sd=cost['sample_std'] if cost else None, training_unit='s', speedup=None,
+                query_mean=None, query_sd=None, precision_change_mean=0. if precision else None,
+                precision_change_sd=0. if precision else None,
+                updates_mean=steps['mean'] if steps else None,
+                updates_sd=steps['sample_std'] if steps else None,
+                optimizer_state_bytes=1139280 if method == 'adamw' else 975440))
+    return rows
+
+
 def collect_fresh_rows(data):
     """One table: all current-backend methods, terminal checks, and total systems cost."""
     if set(data['studies']) != {'epochs', 'timed'}:
@@ -210,6 +304,8 @@ def collect_fresh_rows(data):
                                training_unit='ms/step', speedup=metric['speedup']['median'] if variant == 'new' else None,
                                query_mean=None, query_sd=None, precision_change_mean=None, precision_change_sd=None,
                                updates_mean=128, updates_sd=0, optimizer_state_bytes=None))
+    if 'time_to_quality' in data:
+        rows.extend(collect_time_to_quality_rows(data['time_to_quality'], data['studies']['epochs']))
     return rows + checks
 
 
@@ -223,13 +319,14 @@ def display_rows(rows):
     def pm(mean, sd, scale=1, digits=2):
         return '—' if mean is None else f'{scale*mean:.{digits}f} ± {scale*sd:.{digits}f}'
     for r in rows:
-        cost = (f"{r['training_cost']:.3f} ms/step" if r['training_sd'] is None else
+        cost = ('—' if r['training_cost'] is None else
+                f"{r['training_cost']:.3f} ms/step" if r['training_sd'] is None else
                 pm(r['training_cost'], r['training_sd'], digits=3) + ' s')
         if r['speedup'] is not None:
             cost += f" ({r['speedup']:.3f}×)"
         delta = ('—' if r['precision_change_mean'] is None else
                  f"{100*r['precision_change_mean']:+.2f} ± {100*r['precision_change_sd']:.2f}")
-        updates = f"{r['updates_mean']:,.0f}"
+        updates = '—' if r['updates_mean'] is None else f"{r['updates_mean']:,.0f}"
         if r['updates_sd']:
             updates += f" ± {r['updates_sd']:,.0f}"
         yield [r['study'], r['optimizer'], r['store'], pm(r['precision_mean'], r['precision_sd'], 100),
@@ -391,9 +488,16 @@ def main():
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--verify-history', action='store_true')
     parser.add_argument('--verify-artifacts', action='store_true', help='Audit original local models/features/query reports after retained timings')
+    parser.add_argument('--time-to-quality-run', type=Path,
+                        help='Attach a complete, validated time-to-quality run to the same evidence/table')
     args = parser.parse_args()
     evidence = ROOT / 'report/results.json'
     data = json.loads(evidence.read_text())
+    if args.time_to_quality_run:
+        path = args.time_to_quality_run.resolve()
+        data['time_to_quality'] = json.loads(path.read_text())
+        data['provenance']['time_to_quality_raw_path'] = str(path.relative_to(ROOT))
+        data['provenance']['time_to_quality_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
     rows = collect_rows(data)
     if json_hash(data['system']) != data['provenance']['system_raw_sha256']:
         raise ValueError('Curated systems data differs from its frozen raw report')
@@ -406,6 +510,13 @@ def main():
     for path, expected in data['system']['protocol']['source_sha256'].items():
         if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
             raise ValueError('Measured system source changed: ' + path)
+    if 'time_to_quality' in data:
+        run = data['time_to_quality']
+        if json_hash(run) != data['provenance']['time_to_quality_raw_sha256']:
+            raise ValueError('Time-to-quality data differs from its frozen raw run')
+        for path, expected in run['protocol']['source_sha256'].items():
+            if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
+                raise ValueError('Measured time-to-quality source changed: ' + path)
     for method in OPTIMIZERS:
         selection = data['locked_rate_selection']
         if select_configuration(selection['all_candidates'][method]) != selection['selected'][method]:
@@ -417,7 +528,8 @@ def main():
         print('Local artifact proof:', json.dumps(proof, sort_keys=True))
         if not args.check:
             data['provenance']['artifact_validation'] = proof
-            evidence.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
+    if not args.check and (args.verify_artifacts or args.time_to_quality_run):
+        evidence.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
     readme = ROOT / 'README.md'
     current = readme.read_text()
     before, rest = current.split('<!-- RESULTS:START -->\n')

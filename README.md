@@ -112,6 +112,34 @@ and fixed-feature quantizer comparisons remain separate records.
 `export_features.py --checkpoint <best-checkpoint>` for features from a selected
 validation checkpoint.
 
+## Learning-rate and dataset comparison
+
+The [predeclared study](docs/lr_dataset_study_design.md) gives AdamW and Muon
+three paired learning-rate configurations each on MNIST and Fashion-MNIST.
+Seed7 selects rates by validation loss; fresh seeds8/9/10 assess the selected
+configurations. The [full report](reports/lr_dataset_study/summary.md) includes
+all candidates, validation curves, CPU costs and the final Fashion test.
+
+```bash
+python experiments/run_lr_dataset_study.py
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 python experiments/summarize_lr_dataset_study.py
+```
+
+Use `--dataset Fashion-MNIST` with `train_baseline.py`; its default directory is
+`data/fashion-mnist/`. Both datasets use the original IDX loader and native
+Needle training. Records include dataset identity and file SHA256 hashes.
+Download the official Fashion training files before the runner. The summarizer
+locks all choices before requesting the official test files; see the study
+report for the staged evaluation protocol. Checkpoints and downloaded data
+remain local ignored artifacts.
+For a fresh full reproduction, archive the published `reports/lr_dataset_study/`
+directory outside that output path first; its matching checkpoints are local.
+The runner then creates a new set of records and checkpoints instead of silently
+mixing old records with missing model files.
+This study evaluates classification. The existing `export_features.py` workflow
+is MNIST-specific; selected Fashion retrieval export and compression comparisons
+remain separate work.
+
 ## Verification and scope
 
 Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.

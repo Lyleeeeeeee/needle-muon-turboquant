@@ -1,4 +1,4 @@
-"""Verify the integrated Needle on local MNIST before project experiments."""
+"""Train the integrated Needle encoder on MNIST-compatible IDX data."""
 import argparse
 import hashlib
 import json
@@ -32,7 +32,9 @@ def select_training_indices(train_count, test_count, train_limit, eval_limit, rn
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-dir", type=Path, default=ROOT.parent / "hw0/data")
+    parser.add_argument("--dataset", choices=['MNIST', 'Fashion-MNIST'], default='MNIST')
+    parser.add_argument("--data-dir", type=Path,
+                        help="IDX directory; defaults to local MNIST or data/fashion-mnist")
     parser.add_argument("--device", choices=["numpy", "cpu", "cuda"], default="numpy")
     parser.add_argument("--train-limit", type=int, default=1024)
     parser.add_argument("--eval-limit", type=int, default=256)
@@ -55,6 +57,9 @@ def main():
     parser.add_argument("--best-checkpoint-output", type=Path,
                         help="Save the minimum-validation-loss checkpoint")
     args = parser.parse_args()
+    if args.data_dir is None:
+        args.data_dir = (ROOT.parent / 'hw0/data' if args.dataset == 'MNIST'
+                         else ROOT / 'data/fashion-mnist')
     if min(args.train_limit, args.eval_limit, args.epochs, args.batch_size,
            args.hidden_dim, args.feature_dim) <= 0:
         parser.error("Sample counts, epochs, batch size and dimensions must be positive.")
@@ -113,7 +118,12 @@ def main():
         return total_loss / len(x_valid), correct / len(x_valid)
 
     initial_loss, initial_accuracy = evaluate()
-    record = {"dataset": "MNIST", "purpose": "framework integration smoke run",
+    data_names = ['train-images-idx3-ubyte.gz', 'train-labels-idx1-ubyte.gz']
+    if not args.validation_size:
+        data_names += ['t10k-images-idx3-ubyte.gz', 't10k-labels-idx1-ubyte.gz']
+    record = {"dataset": args.dataset, "purpose": "encoder training experiment",
+              "data_files_sha256": {name: hashlib.sha256((args.data_dir / name).read_bytes()).hexdigest()
+                                    for name in data_names},
               "backend": ndl.BACKEND, "device": str(device),
               "optimizer": 'Muon+AdamW' if args.optimizer == 'muon' else 'AdamW',
               "validation_source": validation_source,
@@ -187,7 +197,8 @@ def main():
             gallery_batches.append(model.features(x).numpy())
         args.feature_output.parent.mkdir(parents=True, exist_ok=True)
         np.savez(args.feature_output, gallery=np.concatenate(gallery_batches), queries=features,
-                 gallery_labels=y_train, query_labels=y_valid, source=np.array("MNIST_encoder"))
+                 gallery_labels=y_train, query_labels=y_valid,
+                 source=np.array(args.dataset + '_encoder'))
         record["feature_export"] = str(args.feature_output)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(record, indent=2) + "\n")

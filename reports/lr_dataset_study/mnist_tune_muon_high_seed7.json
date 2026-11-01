@@ -1,0 +1,151 @@
+{
+  "dataset": "MNIST",
+  "purpose": "encoder training experiment",
+  "data_files_sha256": {
+    "train-images-idx3-ubyte.gz": "98b0ce07d1fe42f39b6a61a1a510779a7ecd2aba907e0ab9a4e431882a941b07",
+    "train-labels-idx1-ubyte.gz": "ca44db0e0f1005aedc21eb1db26a59188434444bea20b9f7f18e5900e273def9"
+  },
+  "backend": "nd",
+  "device": "cpu()",
+  "optimizer": "Muon+AdamW",
+  "validation_source": "train_holdout",
+  "split_seed": 17,
+  "train_validation_disjoint": true,
+  "train_indices_sha256": "cecf470413f06fb7ed7f48bae501c73ee3c10e4771dbeae1d8043117d87e1fe2",
+  "validation_indices_sha256": "8407f0ba2dceec3faa4e36cec825fdb6bb9299b941a053bb4a7fa64eae5806d9",
+  "initial_parameter_sha256": "dea19ff17061df1b55204607e96da0eb0ef7ca8fde27a064f8a70573f9c89f31",
+  "muon_parameter_shapes": [
+    [
+      128,
+      64
+    ]
+  ],
+  "muon_learning_rate": 0.06,
+  "weight_decay": 0.01,
+  "seed": 7,
+  "train_samples": 55000,
+  "eval_samples": 5000,
+  "hidden_dim": 128,
+  "feature_dim": 64,
+  "learning_rate": 0.01,
+  "batch_size": 64,
+  "initial_validation_loss": 2.5071312461853026,
+  "initial_validation_accuracy": 0.09,
+  "epochs": [
+    {
+      "epoch": 1,
+      "training_loss": 0.304714907856421,
+      "validation_loss": 0.24786329069137572,
+      "validation_accuracy": 0.927,
+      "training_seconds": 8.579538917168975,
+      "optimizer_step_seconds": 3.730929419863969,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 2,
+      "training_loss": 0.2034457472454418,
+      "validation_loss": 0.2343680799484253,
+      "validation_accuracy": 0.9378,
+      "training_seconds": 8.215969542041421,
+      "optimizer_step_seconds": 3.5749534806236625,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 3,
+      "training_loss": 0.17747876191139222,
+      "validation_loss": 0.2093750542163849,
+      "validation_accuracy": 0.9456,
+      "training_seconds": 8.187655000016093,
+      "optimizer_step_seconds": 3.561276256805286,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 4,
+      "training_loss": 0.1505247979491949,
+      "validation_loss": 0.1633897217273712,
+      "validation_accuracy": 0.9622,
+      "training_seconds": 8.177285500103608,
+      "optimizer_step_seconds": 3.5514284146483988,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 5,
+      "training_loss": 0.1414163992621682,
+      "validation_loss": 0.14779290051460267,
+      "validation_accuracy": 0.9626,
+      "training_seconds": 8.171114041935652,
+      "optimizer_step_seconds": 3.540789121296257,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 6,
+      "training_loss": 0.13581413364417175,
+      "validation_loss": 0.15899744024276732,
+      "validation_accuracy": 0.9624,
+      "training_seconds": 8.400777500122786,
+      "optimizer_step_seconds": 3.6506798763293773,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 7,
+      "training_loss": 0.12594329298734666,
+      "validation_loss": 0.1492147789955139,
+      "validation_accuracy": 0.9654,
+      "training_seconds": 8.24363987497054,
+      "optimizer_step_seconds": 3.574704922735691,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 8,
+      "training_loss": 0.11997691619829698,
+      "validation_loss": 0.17043471126556398,
+      "validation_accuracy": 0.9624,
+      "training_seconds": 8.235642583109438,
+      "optimizer_step_seconds": 3.5677927043288946,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 9,
+      "training_loss": 0.11647787474935704,
+      "validation_loss": 0.23154420042037963,
+      "validation_accuracy": 0.9464,
+      "training_seconds": 8.280468542128801,
+      "optimizer_step_seconds": 3.596885926090181,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 10,
+      "training_loss": 0.11954383489001881,
+      "validation_loss": 0.13761601939201354,
+      "validation_accuracy": 0.9662,
+      "training_seconds": 8.233058457961306,
+      "optimizer_step_seconds": 3.5624062737915665,
+      "optimizer_steps": 860
+    }
+  ],
+  "best_validation_epoch": 10,
+  "best_validation_loss": 0.13761601939201354,
+  "best_validation_accuracy": 0.9662,
+  "best_checkpoint_export": "/Users/hezhilin/Desktop/10-714/project/results/lr_dataset_study/mnist_tune_muon_high_seed7_best.npz",
+  "training_order_sha256": "09a501b959c4edeec2d21680e3c4bf50a24edc862e572cd1ea0585ef6dff83d8",
+  "optimizer_numeric_state_bytes": 842320,
+  "feature_shape": [
+    5000,
+    64
+  ],
+  "study": {
+    "phase": "tune",
+    "candidate": "high",
+    "method": "muon",
+    "source_sha256": {
+      "apps/train_baseline.py": "00fceed1181620109bb5db72767a450d9cc07620954aa88459fd220d997002d7",
+      "apps/models.py": "550aa459019fe1e9e9a78e15ca64ceda510f4de149e99731a6f8000425c760df",
+      "apps/encoder_checkpoint.py": "0d48f0fe69d459d49937a59fffbcc875c2c1e8a0afd81f35a0696afa2230b119",
+      "python/needle/optim.py": "c677ba6a09c69c09c445acbf40a14e38026624bedbcd51bb9fcf2d58f6754651",
+      "python/needle/data/datasets/mnist_dataset.py": "db1cc70586601b0deeeee151f1713741d440feefd95d2ce545126bf3837c60d8",
+      "experiments/run_lr_dataset_study.py": "fa60d9d3f3a5fa93a53924e7b0ab26fb0dfd49d9f4a8b70daf11c46800a67d98"
+    }
+  },
+  "checkpoint_sha256": "04eec6327687676710f4d2e32b011e365e0b11fce16d839acfd21c1c55982800",
+  "process_elapsed_seconds": 84.77854270790704
+}

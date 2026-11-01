@@ -1,0 +1,146 @@
+{
+  "dataset": "Fashion-MNIST",
+  "purpose": "encoder training experiment",
+  "data_files_sha256": {
+    "train-images-idx3-ubyte.gz": "3aede38d61863908ad78613f6a32ed271626dd12800ba2636569512369268a84",
+    "train-labels-idx1-ubyte.gz": "a04f17134ac03560a47e3764e11b92fc97de4d1bfaf8ba1a3aa29af54cc90845"
+  },
+  "backend": "nd",
+  "device": "cpu()",
+  "optimizer": "AdamW",
+  "validation_source": "train_holdout",
+  "split_seed": 17,
+  "train_validation_disjoint": true,
+  "train_indices_sha256": "54e03738741d1cce4029ca3411a7584ba2262bbee1e1da6771efdce2e68a04b9",
+  "validation_indices_sha256": "8407f0ba2dceec3faa4e36cec825fdb6bb9299b941a053bb4a7fa64eae5806d9",
+  "initial_parameter_sha256": "5c45af0b41cef48bb3b930aa1858e3e95e21df74e25a7ad03bf1d98447be5ad2",
+  "muon_parameter_shapes": [],
+  "muon_learning_rate": null,
+  "weight_decay": 0.01,
+  "seed": 8,
+  "train_samples": 55000,
+  "eval_samples": 5000,
+  "hidden_dim": 128,
+  "feature_dim": 64,
+  "learning_rate": 0.001,
+  "batch_size": 64,
+  "initial_validation_loss": 2.5084097515106203,
+  "initial_validation_accuracy": 0.0554,
+  "epochs": [
+    {
+      "epoch": 1,
+      "training_loss": 0.5065937725934115,
+      "validation_loss": 0.3784817159175873,
+      "validation_accuracy": 0.8608,
+      "training_seconds": 6.6670578750781715,
+      "optimizer_step_seconds": 1.9218926886096597,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 2,
+      "training_loss": 0.3756906963521784,
+      "validation_loss": 0.36411759276390077,
+      "validation_accuracy": 0.8654,
+      "training_seconds": 6.607165459077805,
+      "optimizer_step_seconds": 1.8929054038599133,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 3,
+      "training_loss": 0.3387535701383244,
+      "validation_loss": 0.33174058809280393,
+      "validation_accuracy": 0.8786,
+      "training_seconds": 6.50265062507242,
+      "optimizer_step_seconds": 1.8697123893070966,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 4,
+      "training_loss": 0.3144400172233582,
+      "validation_loss": 0.3329350468158722,
+      "validation_accuracy": 0.879,
+      "training_seconds": 6.492155499989167,
+      "optimizer_step_seconds": 1.862831664737314,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 5,
+      "training_loss": 0.29930836436748504,
+      "validation_loss": 0.3065468187332153,
+      "validation_accuracy": 0.887,
+      "training_seconds": 6.483446459053084,
+      "optimizer_step_seconds": 1.856287699425593,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 6,
+      "training_loss": 0.28334031117179176,
+      "validation_loss": 0.29207245149612426,
+      "validation_accuracy": 0.8938,
+      "training_seconds": 6.538961166981608,
+      "optimizer_step_seconds": 1.8930305077228695,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 7,
+      "training_loss": 0.27042875296419316,
+      "validation_loss": 0.3033740633010864,
+      "validation_accuracy": 0.8902,
+      "training_seconds": 6.497841916978359,
+      "optimizer_step_seconds": 1.8701099634636194,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 8,
+      "training_loss": 0.2629781748641621,
+      "validation_loss": 0.31399122428894044,
+      "validation_accuracy": 0.8828,
+      "training_seconds": 6.537339041940868,
+      "optimizer_step_seconds": 1.8746437481604517,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 9,
+      "training_loss": 0.2528574891252951,
+      "validation_loss": 0.2956235266208649,
+      "validation_accuracy": 0.8906,
+      "training_seconds": 6.782193708932027,
+      "optimizer_step_seconds": 1.9626141546759754,
+      "optimizer_steps": 860
+    },
+    {
+      "epoch": 10,
+      "training_loss": 0.24380720029310746,
+      "validation_loss": 0.29407805256843567,
+      "validation_accuracy": 0.8918,
+      "training_seconds": 6.667662249878049,
+      "optimizer_step_seconds": 1.9448763814289123,
+      "optimizer_steps": 860
+    }
+  ],
+  "best_validation_epoch": 6,
+  "best_validation_loss": 0.29207245149612426,
+  "best_validation_accuracy": 0.8938,
+  "best_checkpoint_export": "/Users/hezhilin/Desktop/10-714/project/results/lr_dataset_study/fashion_repeat_adamw_low_seed8_best.npz",
+  "training_order_sha256": "1491bfa053bd2011daa7aaf27a672130ec776698417c05c8756d90a2a591a262",
+  "optimizer_numeric_state_bytes": 875088,
+  "feature_shape": [
+    5000,
+    64
+  ],
+  "study": {
+    "phase": "repeat",
+    "candidate": "low",
+    "method": "adamw",
+    "source_sha256": {
+      "apps/train_baseline.py": "00fceed1181620109bb5db72767a450d9cc07620954aa88459fd220d997002d7",
+      "apps/models.py": "550aa459019fe1e9e9a78e15ca64ceda510f4de149e99731a6f8000425c760df",
+      "apps/encoder_checkpoint.py": "0d48f0fe69d459d49937a59fffbcc875c2c1e8a0afd81f35a0696afa2230b119",
+      "python/needle/optim.py": "c677ba6a09c69c09c445acbf40a14e38026624bedbcd51bb9fcf2d58f6754651",
+      "python/needle/data/datasets/mnist_dataset.py": "db1cc70586601b0deeeee151f1713741d440feefd95d2ce545126bf3837c60d8",
+      "experiments/run_lr_dataset_study.py": "fa60d9d3f3a5fa93a53924e7b0ab26fb0dfd49d9f4a8b70daf11c46800a67d98"
+    }
+  },
+  "checkpoint_sha256": "ad445857a12381d15ea4d9d6c2849d63dd0d80357313c6671a1531cd86b5dd23",
+  "process_elapsed_seconds": 67.83721854095347
+}

@@ -14,7 +14,10 @@ layout-aware scaling, holdout splits and independent numerical tests are now
 implemented. The checklist below also defines the broader formal study.
 The completed [paired pilot](../reports/muon_pilot_summary.md) compares three
 training seeds, validation-selected checkpoints and the earlier training budget.
-Hyperparameter-tuned Fashion-MNIST conclusions remain future work.
+The [learning-rate and dataset study](../reports/lr_dataset_study/summary.md)
+adds three candidate configurations per method/dataset, separate repeat seeds,
+and a final Fashion-MNIST test with all choices frozen before test access.
+Its small MLP and bounded grid remain distinct from large-model paper results.
 
 1. Pin an author implementation and record momentum, Nesterov behavior, Newton-Schulz coefficients/steps, and shape scaling. Start with Needle float32.
 2. Add Muon to `needle.optim`. Initially assign `model.hidden.weight` to Muon; input/output layers and biases use auxiliary AdamW. Check that parameter groups are disjoint and exhaustive.

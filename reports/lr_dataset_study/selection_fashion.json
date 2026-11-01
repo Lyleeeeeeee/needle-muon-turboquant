@@ -1,0 +1,70 @@
+{
+  "dataset": "Fashion-MNIST",
+  "tuning_seed": 7,
+  "selection": "minimum_validation_loss_then_candidate_name",
+  "test_set_used": false,
+  "all_candidates": {
+    "adamw": [
+      {
+        "candidate": "low",
+        "record": "reports/lr_dataset_study/fashion_tune_adamw_low_seed7.json",
+        "record_sha256": "79599df32fff0e5df39b09913b513a220cf54bb602d8a4337ab0f980b6ac128b",
+        "best_validation_loss": 0.29247804436683655,
+        "best_validation_accuracy": 0.8916
+      },
+      {
+        "candidate": "medium",
+        "record": "reports/lr_dataset_study/fashion_tune_adamw_medium_seed7.json",
+        "record_sha256": "f043a9398dabce59fc987dbc9b22cccbe99f7748c7b9948d0e8105845b1f7073",
+        "best_validation_loss": 0.3124558844089508,
+        "best_validation_accuracy": 0.8854
+      },
+      {
+        "candidate": "high",
+        "record": "reports/lr_dataset_study/fashion_tune_adamw_high_seed7.json",
+        "record_sha256": "717fdd1c6396bd1a42b3be0c29d1b4d6c1dd30f7d7fe0e0983e5f9693a5e13a3",
+        "best_validation_loss": 0.35184214696884153,
+        "best_validation_accuracy": 0.8742
+      }
+    ],
+    "muon": [
+      {
+        "candidate": "low",
+        "record": "reports/lr_dataset_study/fashion_tune_muon_low_seed7.json",
+        "record_sha256": "778d4738b734d08d908b3bd97cb765c4858d4a3e073895d5c1f7609e19d1e7e6",
+        "best_validation_loss": 0.2887831834793091,
+        "best_validation_accuracy": 0.8916
+      },
+      {
+        "candidate": "medium",
+        "record": "reports/lr_dataset_study/fashion_tune_muon_medium_seed7.json",
+        "record_sha256": "9aa37d038668bb29362bcf9b2251beecdad2cf4499f1b0d471218945c6cf1cd5",
+        "best_validation_loss": 0.32310190415382384,
+        "best_validation_accuracy": 0.8842
+      },
+      {
+        "candidate": "high",
+        "record": "reports/lr_dataset_study/fashion_tune_muon_high_seed7.json",
+        "record_sha256": "c0fa25496eefdd07dcffa160f8387b66ed4ba4f809dee3a2efe6e0230c31bbb9",
+        "best_validation_loss": 0.4243186857700348,
+        "best_validation_accuracy": 0.8546
+      }
+    ]
+  },
+  "selected": {
+    "adamw": {
+      "candidate": "low",
+      "record": "reports/lr_dataset_study/fashion_tune_adamw_low_seed7.json",
+      "record_sha256": "79599df32fff0e5df39b09913b513a220cf54bb602d8a4337ab0f980b6ac128b",
+      "best_validation_loss": 0.29247804436683655,
+      "best_validation_accuracy": 0.8916
+    },
+    "muon": {
+      "candidate": "low",
+      "record": "reports/lr_dataset_study/fashion_tune_muon_low_seed7.json",
+      "record_sha256": "778d4738b734d08d908b3bd97cb765c4858d4a3e073895d5c1f7609e19d1e7e6",
+      "best_validation_loss": 0.2887831834793091,
+      "best_validation_accuracy": 0.8916
+    }
+  }
+}

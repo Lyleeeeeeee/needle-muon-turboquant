@@ -1,5 +1,10 @@
 # Why TurboQuant-MSE trails uniform in the original experiment
 
+Runtime follow-up: decoded-cosine scoring is now available in Needle through
+`search(..., metric='cosine')`. The [native comparison](native_cosine_summary.md)
+includes quality and timed normalization costs. The independent-reference
+diagnosis below is preserved as the evidence that motivated that change.
+
 The evidence points to a substantial scoring-choice effect and a favorable
 coordinate representation for affine uniform quantization. The audit did not
 find an error in the core quantizer on the examined inputs. The original
@@ -64,9 +69,11 @@ remain visible.
 
 This is a quality-only independent-reference experiment. Its scoring arithmetic
 is NumPy float64, and the tested quantization/decode kernels are native Needle
-CPU. The optional cosine/distance scorers have not been added to the production
-Needle search API. There is no new packed-kernel, runtime-speed or peak-memory
-claim, and existing search defaults and earlier records are unchanged.
+CPU. At the time of this diagnosis the cosine/distance scorers were not part of
+the production Needle search API. Cosine was subsequently integrated as an
+explicit option; the records here remain independent-reference measurements.
+This page makes no new packed-kernel, runtime-speed or peak-memory claim, and
+earlier records and the default raw-IP scoring rule are unchanged.
 
 ## Finding 2: the current coordinate representation favors uniform
 
@@ -143,11 +150,12 @@ the gap, while coordinate structure demonstrably changes the comparison.
 TurboQuant is competitive at two bits in the corrected quality experiment;
 uniform remains better at four bits on the original ReLU features.
 
-A subsequent runtime change should expose scorer choice explicitly, retain the
-raw-IP baseline, implement normalized scoring in Needle/native operations, and
-measure its additional costs. Independent-reference quality improvements alone
-are not a systems performance contribution. Evaluate more encoder seeds,
-coordinate transforms and the planned Fashion-MNIST data before broad claims.
+The subsequent native cosine implementation exposes scorer choice explicitly,
+retains raw IP, and measures the added work in the
+[native comparison](native_cosine_summary.md). Independent-reference quality
+improvements alone are not a systems performance contribution. More encoder
+seeds, coordinate transforms and the planned Fashion-MNIST evaluation remain
+necessary before broad claims.
 
 ## Reproduce
 

@@ -25,17 +25,23 @@ from needle.quantization import TurboQuantMSE
 gallery = np.random.default_rng(7).normal(size=(2048, 64)).astype('float32')
 quantizer = TurboQuantMSE(dim=64, bits=4, seed=7)
 store = quantizer.encode(gallery)
-result = store.search(gallery[:8], k=10, block_size=256)
+result = store.search(gallery[:8], k=10, block_size=256, metric='cosine')
 print(store.storage_bytes, result.indices)
 store.save('gallery.npz')
 ```
 
-Input norms are restored within float32 range; zero vectors are supported. Search uses inner products. Normalize gallery and query rows before encoding/search when cosine similarity is intended. Search rotates queries once and decodes gallery blocks in the rotated basis, avoiding an inverse rotation per gallery block.
+Input norms are restored within float32 range; zero vectors are supported.
+Search defaults to raw inner products for compatibility. Select
+`metric='cosine'` to normalize queries and reconstructed gallery blocks using
+Needle NDArray operations before scoring. Zero rows have zero scores. Query
+normalization precedes rotation; gallery normalization stays blockwise without
+caching a dense decoded gallery. TurboQuant searches in the rotated basis,
+avoiding an inverse rotation per gallery block.
 
 ## Run comparisons
 
 ```bash
-python apps/benchmark_quantization.py --output results/synthetic_quantization.json
+python apps/benchmark_quantization.py --metric cosine --output results/synthetic_quantization.json
 ```
 
 This compares FP32, uniform 2/4-bit, and TurboQuant-MSE 2/4-bit in isolated workers. Reports include numerical buffer bytes, actual archive bytes, setup/build costs, query latency, reconstruction error, recall, decoded-block sizes, and whole-worker peak RSS. Read the [methodology](docs/quantization.md) before interpreting memory or timing numbers. [Current measurements](reports/quantization_summary.md) include both improvements and negative findings.
@@ -49,8 +55,9 @@ recall under the original raw-inner-product scorer. The subsequent
 [quality diagnosis](reports/quantization_diagnosis.md) finds a substantial
 reconstructed-norm scoring effect and coordinate dependence. With the same
 decoded-cosine scorer, TurboQuant leads at two bits and uniform leads at four
-bits on the full learned gallery. Those are independent-reference quality
-experiments; the production search default remains raw inner product. The
+bits on the full learned gallery. Cosine is now implemented in Needle and
+available with `search(..., metric='cosine')` or benchmark `--metric cosine`.
+The production default remains raw inner product. The
 trainer accepts `--checkpoint-output results/encoder.npz`; independently expand
 retrieval without retraining with:
 
@@ -61,6 +68,11 @@ python apps/export_features.py --checkpoint results/encoder.npz --gallery-size 6
 The exporter preserves the original 4,096-image gallery and 256-image query
 selections as prefixes by default. Match `--reference-train`,
 `--reference-queries`, and `--seed` to other original smoke-run settings.
+
+The [native cosine comparison](reports/native_cosine_summary.md) repeats both
+score modes on the full frozen gallery, including normalization in query
+timing. It confirms the two-bit TurboQuant advantage and four-bit uniform
+advantage in the actual Needle API, with unchanged persistent storage.
 
 For an encoder-feature integration check, provide MNIST's four original `.gz` files in one directory:
 

@@ -77,6 +77,17 @@ def _tensor(values, device):
     return Tensor(values, device=device, dtype='float32', requires_grad=False)
 
 
+def _unit_tensor_rows(tensor):
+    """Stable L2 normalization using only the selected Needle NDArray backend."""
+    values = tensor.realize_cached_data()
+    scale = values.maximum(-values).max(axis=1, keepdims=True)
+    safe_scale = scale + (scale == 0)
+    scaled = values / safe_scale.broadcast_to(values.shape)
+    norm = (scaled * scaled).sum(axis=1, keepdims=True) ** .5
+    safe_norm = norm + (norm == 0)
+    return Tensor.make_const(scaled / safe_norm.broadcast_to(values.shape))
+
+
 def _pack(codes, bits, device):
     if device == nd.cpu():
         return device.pack_codes(codes, bits)
@@ -107,26 +118,34 @@ class _VectorStore:
         return sum(self.storage_bytes.values())
 
     def _query_tensor(self, values):
-        return _tensor(values, self.device)
+        return values
 
     def _bounds(self, start, stop):
         if not (0 <= start < stop <= self.rows):
             raise ValueError("Invalid nonempty row range")
 
-    def search(self, queries, k=10, block_size=256):
-        """Inner-product top-k; retain only one decoded gallery block at a time."""
+    def search(self, queries, k=10, block_size=256, *, metric='inner_product'):
+        """Blockwise raw-IP or decoded-cosine top-k; zero cosine rows score zero."""
         queries = _matrix(queries, self.dim)
+        if metric not in ('inner_product', 'cosine'):
+            raise ValueError("metric must be 'inner_product' or 'cosine'")
         if not isinstance(k, int) or not 1 <= k <= self.rows:
             raise ValueError("k must lie between 1 and the gallery size")
         if not isinstance(block_size, int) or block_size <= 0:
             raise ValueError("block_size must be positive")
-        q = self._query_tensor(queries)
+        q = _tensor(queries, self.device)
+        if metric == 'cosine':
+            # Normalize before any rotation, including extreme finite queries.
+            q = _unit_tensor_rows(q)
+        q = self._query_tensor(q)
         best_scores = np.empty((len(queries), 0), dtype='float32')
         best_ids = np.empty((len(queries), 0), dtype='int64')
         max_decode = max_scores = 0
         for start in range(0, self.rows, block_size):
             stop = min(start + block_size, self.rows)
             block = self.decode_block(start, stop, rotated=True)
+            if metric == 'cosine':
+                block = _unit_tensor_rows(block)
             scores = (q @ block.transpose()).numpy()
             max_decode = max(max_decode, (stop - start) * self.dim * 4)
             max_scores = max(max_scores, scores.nbytes)
@@ -185,7 +204,7 @@ class PackedVectorStore(_VectorStore):
                     rotation=self.dim * self.dim * 4, codebook=self.quantizer.codebook.nbytes)
 
     def _query_tensor(self, values):
-        return _tensor(values, self.device) @ self.quantizer.rotation
+        return values @ self.quantizer.rotation
 
     def decode_block(self, start, stop, rotated=False):
         self._bounds(start, stop)

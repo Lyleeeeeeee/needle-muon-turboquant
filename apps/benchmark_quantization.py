@@ -66,17 +66,19 @@ def worker(args):
     else:
         np.savez(archive, vectors=store.values.numpy())
     # Warm up allocation and dispatch; report all subsequent samples.
-    store.search(queries, k=args.k, block_size=args.block_size)
+    options = dict(k=args.k, block_size=args.block_size, metric=args.metric)
+    store.search(queries, **options)
     samples = []
     for _ in range(args.repeats):
         started = time.perf_counter()
-        result = store.search(queries, k=args.k, block_size=args.block_size)
+        result = store.search(queries, **options)
         samples.append(time.perf_counter() - started)
     quality = retrieval_quality(result.indices, truth, labels, args.k, len(queries))
     prefix_quality = [retrieval_quality(result.indices, truth, labels, args.k, count)
                       for count in sorted({min(256, len(queries)), len(queries)})]
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    record = {'method': method, 'device': str(device), 'stored_bytes': store.nbytes,
+    record = {'method': method, 'device': str(device), 'search_metric': args.metric,
+              'normalization_timed': args.metric == 'cosine', 'stored_bytes': store.nbytes,
               'storage_breakdown': store.storage_bytes, 'serialized_bytes': archive.stat().st_size,
               'setup_seconds': setup_seconds, 'build_seconds': build_seconds,
               'query_seconds': samples, 'query_seconds_median': float(np.median(samples)),
@@ -111,6 +113,8 @@ def main():
     parser.add_argument('--block-size', type=int, default=256)
     parser.add_argument('--repeats', type=int, default=5)
     parser.add_argument('--device', choices=['cpu', 'numpy'], default='cpu')
+    parser.add_argument('--metric', choices=['inner_product', 'cosine'], default='inner_product',
+                        help='Raw dot products or Needle-normalized query/decoded-block cosine')
     parser.add_argument('--output', type=Path, default=ROOT / 'results/quantization.json')
     parser.add_argument('--worker-method', choices=['fp32', 'uniform_2', 'uniform_4', 'turbo_2', 'turbo_4'], help=argparse.SUPPRESS)
     parser.add_argument('--worker-output', type=Path, help=argparse.SUPPRESS)
@@ -139,7 +143,8 @@ def main():
                    or labels['query_labels'].shape != (len(queries),)):
         parser.error('Both label arrays must match their feature matrix row counts')
     device = ndl.cpu() if args.device == 'cpu' else ndl.cpu_numpy()
-    truth = FloatVectorStore(gallery, device=device).search(queries, k=args.k, block_size=args.block_size).indices
+    truth = FloatVectorStore(gallery, device=device).search(
+        queries, k=args.k, block_size=args.block_size, metric=args.metric).indices
     rows = []
     with tempfile.TemporaryDirectory(prefix='needle-quant-benchmark-') as folder:
         folder = Path(folder)
@@ -150,7 +155,7 @@ def main():
             command = [sys.executable, str(Path(__file__).resolve()), '--worker-method', method,
                        '--features', str(features), '--worker-output', str(output), '--device', args.device,
                        '--seed', str(args.seed), '--k', str(args.k), '--block-size', str(args.block_size),
-                       '--repeats', str(args.repeats)]
+                       '--repeats', str(args.repeats), '--metric', args.metric]
             env = dict(os.environ, OPENBLAS_NUM_THREADS='1', OMP_NUM_THREADS='1', VECLIB_MAXIMUM_THREADS='1')
             result = subprocess.run(command, capture_output=True, text=True, env=env, timeout=120)
             if result.returncode:
@@ -160,26 +165,28 @@ def main():
             rows.append(row)
             print(method, 'bytes=', row['stored_bytes'], 'recall=', round(row['recall_at_k'], 4), flush=True)
     report = {'source': source_name, 'gallery_shape': list(gallery.shape), 'query_shape': list(queries.shape),
-              'similarity': 'inner_product_on_l2_normalized_inputs', 'seed': args.seed, 'k': args.k,
+              'similarity': ('inner_product_on_l2_normalized_inputs' if args.metric == 'inner_product'
+                             else 'cosine_on_decoded_vectors'),
+              'search_metric': args.metric, 'ground_truth_metric': args.metric, 'seed': args.seed, 'k': args.k,
               'block_size': args.block_size, 'repeats': args.repeats,
-              'query_timing_scope': 'query rotation, block decode, Needle matmul and top-k; excludes feature extraction and build',
+              'query_timing_scope': 'query preparation/rotation, block decode, Needle matmul and top-k; cosine includes Needle query/block normalization; excludes feature extraction and build',
               'rss_scope': 'entire isolated worker including input loading, build, quality checks, serialization and query',
               'buffer_scope': 'persistent numerical buffers; excludes Python objects and allocator overhead',
-              'block_scope': 'decoded and score arrays only; excludes matmul packing/workspace and top-k merge arrays',
+              'block_scope': 'decoded and score arrays only; excludes normalization, matmul packing/workspace and top-k merge arrays',
               'environment': {'python': platform.python_version(), 'platform': platform.platform(),
                               **{name: importlib.metadata.version(name) for name in ['numpy', 'scipy']}},
               'results': rows}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     markdown = ['# Preliminary quantization comparison', '',
-                f'Source: {source_name}. Gallery: {gallery.shape}; queries: {queries.shape}; seed: {args.seed}; k: {args.k}.', '',
+                f'Source: {source_name}. Gallery: {gallery.shape}; queries: {queries.shape}; seed: {args.seed}; k: {args.k}; metric: {args.metric}.', '',
                 '| Method | Buffer bytes | Compression | Relative MSE | Recall@k | Median query ms |',
                 '|---|---:|---:|---:|---:|---:|']
     for row in rows:
         markdown.append(f"| {row['method']} | {row['stored_bytes']} | {row['compression_ratio_vs_fp32']:.2f}x | {row['relative_reconstruction_mse']:.6f} | {row['recall_at_k']:.4f} | {1000 * row['query_seconds_median']:.3f} |")
     markdown += ['', 'Single-seed component check, not a full paper reproduction or optimizer comparison.',
-                 'Storage includes shared rotation/codebook and per-row metadata. Query timing excludes feature generation and build.',
-                 'Process RSS is a whole-worker high-water mark, not exact query-only peak memory. Decoded-block counters exclude matmul/top-k workspace.', '']
+                 'Storage includes shared rotation/codebook and per-row metadata. Query timing includes normalization for cosine; excludes feature generation and build.',
+                 'Process RSS is a whole-worker high-water mark, not exact query-only peak memory. Decoded-block counters exclude normalization/matmul/top-k workspace.', '']
     args.output.with_suffix('.md').write_text('\n'.join(markdown))
     print('Saved:', args.output)
 

@@ -16,6 +16,25 @@ Positive-tail masses use survival probabilities to avoid subtracting two CDF val
 
 Encoding stores the nearest centroid index. Boundary ties select the upper index. Decoding looks up centroids, restores row norms, and optionally applies `R.T`. Search instead rotates queries once and computes scores against decoded rotated blocks; this preserves the reconstructed-vector inner product up to float32 rounding while avoiding a rotation for every gallery block.
 
+## Search metrics
+
+`store.search(queries, k=10, block_size=256, metric='inner_product')` preserves the
+original raw-dot-product behavior. `metric='cosine'` normalizes each query row
+and decoded block before the score matrix product. Both FP32 and quantized
+stores use the same implementation. Zero rows remain zero and score zero.
+
+Normalization uses the selected Needle NDArray backend's elementwise maximum,
+division, power and reduction operations. On native CPU these execute through
+the existing C++ kernels. Max-absolute-value rescaling precedes the L2 reduction
+to avoid float32 overflow/underflow for extreme finite values. Queries normalize
+before TurboQuant rotation; decoded blocks normalize in the rotated basis.
+Orthogonality makes this equivalent to original-space decoded cosine up to
+float32 rounding. No persistent normalized-gallery or norm cache is added.
+
+NumPy input validation and top-k merging remain as documented; the new native
+normalization itself does not call NumPy norm/reduction functions. The separate
+NumPy reference device remains available for verification.
+
 ## Native storage
 
 `src/quantization_cpu.h` adds CPU kernels to the existing Needle extension:
@@ -35,13 +54,20 @@ The uniform baseline uses per-row min/scale metadata and the same 2/4-bit layout
 
 These counts exclude Python containers, allocator alignment/overhead, queries, labels, and source images. They are feature-store buffer sizes, not total process memory. `serialized_bytes` measures the actual uncompressed NPZ archive size, including its headers and scalar metadata.
 
-Search reports the largest logical float32 decoded block and score block. These counters verify gallery-size-independent block dimensions at fixed query count and block size. They exclude matmul packing/workspace and top-k merge arrays, so they must not be described as exact peak query memory.
+Search reports the largest logical float32 decoded block and score block. These counters verify gallery-size-independent block dimensions at fixed query count and block size. They exclude normalization temporaries, matmul packing/workspace and top-k merge arrays, so they must not be described as exact peak query memory.
 
 Each comparison runs in a fresh worker and separately reports process high-water RSS using `resource.getrusage`. That value covers imports, loading dense input, encoding, reconstruction checks, serialization, and queries. It is a whole-worker high-water mark, not a query-only peak or incremental quantizer allocation.
 
 ## Benchmark protocol
 
 The driver normalizes input rows for cosine-style retrieval, then uses inner products. FP32 neighbors from the same gallery are the ground truth. The reported relative reconstruction MSE is total squared reconstruction error divided by input energy. Recall is the mean top-k set overlap; optional label precision measures semantic retrieval when labels are supplied.
+
+The benchmark's `--metric inner_product` retains that original setup.
+`--metric cosine` also normalizes the reconstructed gallery at search time, and
+uses matching FP32 cosine ground truth. Records specify `search_metric` and
+`ground_truth_metric`, and workers receive the selected mode explicitly.
+Mathematically unit-vector raw IP and cosine share a ranking; float32 near-ties
+can differ, so the exact FP32 target definition is retained in each record.
 
 `query_prefix_quality` separately records quality on the first 256 queries (or
 all queries if fewer) and the complete query set. These are evaluations of the
@@ -50,7 +76,7 @@ query comparisons without changing the gallery or model. Frozen-weight and
 independent selection/export details are in the
 [scale-study design](quantization_scale_design.md).
 
-Each method gets a fresh process, the same data, seed, query count, block size, and repeat count. TurboQuant 2/4-bit variants share the same rotation seed. Scalar codebook and rotation setup, build time, and steady query latency are reported separately. Query timing includes input preparation, query rotation when needed, block decoding, Needle matmul, and top-k merging. It excludes image encoding, codebook setup, and gallery construction. One untimed warm-up precedes the recorded query samples; CPU math-library thread counts are fixed to one in workers.
+Each method gets a fresh process, the same data, seed, query count, block size, and repeat count. TurboQuant 2/4-bit variants share the same rotation seed. Scalar codebook and rotation setup, build time, and steady query latency are reported separately. Query timing includes input preparation, query rotation when needed, block decoding, Needle query/block normalization in cosine mode, Needle matmul, and top-k merging. It excludes image encoding, codebook setup, and gallery construction. One untimed warm-up precedes the recorded query samples; CPU math-library thread counts are fixed to one in workers.
 
 The default synthetic gallery contains random unit-sphere vectors. An NPZ feature file may provide `gallery`, `queries`, optional `gallery_labels`/`query_labels`, and an optional scalar `source` name. The MNIST export command uses training features as the gallery and the original smoke-run validation features as queries. It is a component check; formal Fashion-MNIST train/validation/test handling remains part of the shared experiment plan.
 

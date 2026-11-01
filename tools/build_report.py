@@ -21,6 +21,7 @@ from tune_batch512 import choose_rates, final_schedule, learning_rate_grid, summ
 from evaluate_tuned import make_protocol, select_terminal_snapshots
 from cifar_pilot import choose_candidate, final_epochs, model_config, rate_grid
 from compare_galleries import METHODS as GALLERY_METHODS, summarize_galleries
+from cifar_time_to_quality import TARGETS as CIFAR_TARGETS, SEEDS as CIFAR_SEEDS, observation_due, summarize_targets
 
 STORES = {'fp32': 'FP32', 'uniform_2': 'Uniform 2-bit', 'uniform_4': 'Uniform 4-bit',
           'turbo_2': 'TurboQuant 2-bit', 'turbo_4': 'TurboQuant 4-bit'}
@@ -634,6 +635,76 @@ def collect_cifar_rows(bundle, previous):
                               { (r['optimizer'], r['seed']): r for r in final}, stores, [8], 10000)
 
 
+def collect_cifar_time_rows(run,parent):
+    p=run['protocol'];before=parent['protocol']
+    expected=dict(dataset='CIFAR-100',study='cifar_time_to_quality',smoke=False,targets=CIFAR_TARGETS,
+                  budget_seconds=600.,final_seeds=CIFAR_SEEDS,selected=parent['selection']['selected'],
+                  parent_pilot_sha256=json_hash(parent),parent_selection_sha256=parent['selection_sha256'],
+                  observation_rule='every20_updates_through400_then_every40;always_terminal',
+                  offline_quality_workers=3,no_metric_based_stopping=True)
+    for key in ('model','batch_size','train_rows','validation_rows','train_per_class','validation_per_class',
+                'query_per_class','train_ids_sha256','validation_ids_sha256','data_sha256','mean','std',
+                'split_seed','augmentation','weight_decay','official_test_used','backend'):
+        expected[key]=before[key]
+    if any(p.get(k)!=v for k,v in expected.items()):
+        raise ValueError('CIFAR matched-quality targets, budget, selected rates or model/data changed')
+    for path,sha in before['source_sha256'].items():
+        if p['source_sha256'].get(path)!=sha:raise ValueError('CIFAR matched-quality shared source differs: '+path)
+    path='experiments/cifar_time_to_quality.py'
+    if p['source_sha256'].get(path)!=hashlib.sha256((ROOT/path).read_bytes()).hexdigest():
+        raise ValueError('Measured CIFAR trajectory runner changed')
+    records=run['trajectories']
+    if len(records)!=6 or {(r['optimizer'],r['seed']) for r in records}!={(m,s) for m in OPTIMIZERS for s in CIFAR_SEEDS}:
+        raise ValueError('Expected all six fresh paired CIFAR trajectories')
+    ids=parent['final'][0]
+    for r in records:
+        raw={k:v for k,v in r.items() if k not in ('curve','training_record_sha256','feature_archive',
+             'feature_archive_sha256','gallery_ids_sha256','query_ids_sha256')}
+        method=r['optimizer'];complete=r['status']=='complete'
+        states=438304 if method=='adamw' else 299040
+        if (r['protocol_sha256']!=json_hash(p) or r['training_record_sha256']!=json_hash(raw)
+                or r['candidate']!=p['selected'][method]['candidate']
+                or r['total_parameter_count']!=54788 or r['muon_eligible_parameter_count']!=34816
+                or r['muon_parameter_count']!=(34816 if method=='muon' else 0)
+                or r['optimizer_numeric_state_bytes'] not in ({states} if complete or r['steps'] else {0,states})
+                or r['train_ids_sha256']!=p['train_ids_sha256'] or r['validation_ids_sha256']!=p['validation_ids_sha256']
+                or any(r[k]!=ids[k] for k in ('gallery_ids_sha256','query_ids_sha256'))
+                or r['status'] not in ('complete','diverged')
+                or len(r['training_losses'])!=r['steps']
+                or any(not math.isfinite(x) for x in r['training_losses'])):
+            raise ValueError('CIFAR trajectory raw data, model, rate or training record differs')
+        if complete and (r['stop_reason']!='training_time_budget'
+                or not 600<=r['training_seconds']<=600+r['last_step_seconds']+1e-6
+                or r['data_attempts']!=r['steps']):
+            raise ValueError('CIFAR trajectory elapsed budget or complete-update clock differs')
+        snapshots=r['snapshots'];curve=r['curve']
+        planned=[0,*[n for n in range(1,r['steps']+1) if observation_due(n)]]
+        if complete and planned[-1]!=r['steps']:planned.append(r['steps'])
+        if (not snapshots or len(snapshots)!=len(curve)
+                or [s['steps'] for s in snapshots]!=(planned if complete else planned[:len(snapshots)])
+                or (complete and snapshots[-1]['training_seconds']!=r['training_seconds'])
+                or len(r['epoch_order_sha256'])!=(r['data_attempts']+39)//40):
+            raise ValueError('CIFAR trajectory observation schedule or terminal budget differs')
+        for snap,point in zip(snapshots,curve):
+            n=snap['steps'];samples=n//40*10000+(n%40)*256
+            if (any(point.get(k)!=v for k,v in snap.items()) or snap['samples_seen']!=samples
+                    or not math.isfinite(point['precision']) or not 0<=point['precision']<=1
+                    or abs(point['precision']-point['same_category_matches']/10000)>1e-12):
+                raise ValueError('CIFAR retrieval observations differ from actual training snapshots')
+    summary=summarize_targets(records,p['targets'],p['final_seeds'])
+    if summary!=run['summary']:raise ValueError('CIFAR matched-quality summary differs from all raw curves')
+    for seed in CIFAR_SEEDS:
+        pair=[next(r for r in records if (r['seed'],r['optimizer'])==(seed,m)) for m in OPTIMIZERS]
+        if any(pair[0]['curve'][0][k]!=pair[1]['curve'][0][k] for k in ('precision','same_category_matches','neighbor_indices_sha256')):
+            raise ValueError('Paired identical initial CIFAR models have different retrieval results')
+    rows=threshold_rows(summary,'CIFAR / 600s budget / ')
+    for row in rows:
+        method=next(m for m,label in OPTIMIZERS.items() if label==row['optimizer'])
+        values={r['optimizer_numeric_state_bytes'] for r in records if r['optimizer']==method}
+        row.update(gallery_bytes=2560000,optimizer_state_bytes=values.pop() if len(values)==1 else None)
+    return rows
+
+
 def collect_fresh_rows(data):
     """One table: all current-backend methods, terminal checks, and total systems cost."""
     if set(data['studies']) != {'epochs', 'timed'}:
@@ -706,7 +777,8 @@ def collect_fresh_rows(data):
         systems = [r for r in checks if r['training_unit'] == 'ms/step']
         compact = collect_compact_rows(data['compact_uniform'], data['integrated']) if 'compact_uniform' in data else []
         cifar = collect_cifar_rows(data['cifar_pilot'], data['integrated']) if 'cifar_pilot' in data else []
-        return current + compact + cifar + systems + batch_rows + tuned_rows
+        cifar_time=collect_cifar_time_rows(data['cifar_time_to_quality'],data['cifar_pilot']['pilot']) if 'cifar_time_to_quality' in data else []
+        return current + compact + cifar + cifar_time + systems + batch_rows + tuned_rows
     return rows + checks + batch_rows + tuned_rows
 
 
@@ -899,6 +971,7 @@ def main():
     parser.add_argument('--integrated-run', type=Path, help='Attach fixed terminal tuned optimizer × gallery comparison')
     parser.add_argument('--compact-run', type=Path, help='Attach shared-min uniform comparison on the existing Fashion models')
     parser.add_argument('--cifar-run', type=Path, help='Attach a labelled one-seed CIFAR model/data feasibility pilot')
+    parser.add_argument('--cifar-time-run',type=Path,help='Attach the three-seed 600s CIFAR matched-quality study')
     args = parser.parse_args()
     evidence = ROOT / 'report/results.json'
     data = json.loads(evidence.read_text())
@@ -922,7 +995,8 @@ def main():
         data['integrated'] = json.loads(path.read_text())
         data['provenance']['integrated_raw_path'] = str(path.relative_to(ROOT))
         data['provenance']['integrated_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
-    for argument, key in ((args.compact_run, 'compact_uniform'), (args.cifar_run, 'cifar_pilot')):
+    for argument, key in ((args.compact_run, 'compact_uniform'), (args.cifar_run, 'cifar_pilot'),
+                          (args.cifar_time_run,'cifar_time_to_quality')):
         if argument:
             path = argument.resolve()
             data[key] = json.loads(path.read_text())
@@ -970,7 +1044,7 @@ def main():
         for path, expected in run['protocol']['source_sha256'].items():
             if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
                 raise ValueError('Measured integrated source changed: ' + path)
-    for key in ('compact_uniform', 'cifar_pilot'):
+    for key in ('compact_uniform', 'cifar_pilot','cifar_time_to_quality'):
         if key in data and json_hash(data[key]) != data['provenance'][key+'_raw_sha256']:
             raise ValueError('New gallery/pilot evidence differs from its sealed raw run: ' + key)
     for method in OPTIMIZERS:
@@ -984,7 +1058,7 @@ def main():
         print('Local artifact proof:', json.dumps(proof, sort_keys=True))
         if not args.check:
             data['provenance']['artifact_validation'] = proof
-    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run or args.tuned512_run or args.integrated_run or args.compact_run or args.cifar_run):
+    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run or args.tuned512_run or args.integrated_run or args.compact_run or args.cifar_run or args.cifar_time_run):
         evidence.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
     readme = ROOT / 'README.md'
     current = readme.read_text()

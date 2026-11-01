@@ -9,7 +9,7 @@ is not a training or inference dependency.
 
 ## Consolidated results
 
-The primary comparison uses six existing **validation-tuned batch-512 models**:
+The integrated compression comparison uses six existing **validation-tuned batch-512 models**:
 AdamW and Muon at seeds 8/9/10, each trained for 100 epochs (10,800 updates).
 Every model contributes all five gallery formats. The integration stage loads
 the fixed final checkpoint, exports its features and measures retrieval; it
@@ -18,6 +18,8 @@ A shared-min metadata follow-up strengthens the ordinary uniform baseline on
 those same six models. A separately labelled CIFAR-100 patch-model pilot adds
 one paired seed at 20 epochs; its numbers are validation results and have no
 between-training-seed error bars. Dataset and architecture both change there.
+A follow-up on that fixed CIFAR configuration uses three fresh paired seeds
+and a 600-second training budget per model to measure predefined quality goals.
 
 This is the only results table. [CSV](report/results.csv) exports the same rows.
 [Evidence JSON](report/results.json) retains every current raw trial, provenance
@@ -60,6 +62,14 @@ history rather than appearing as competing primary comparisons.
 | CIFAR-100 pilot / 20 epochs / seed 8 | Muon + aux AdamW | Uniform symmetric 4-bit | 12.53 | -0.33 | 89.44 | 0.3600 | 7.11× | 142.934 s | 800 | 0.2990 | 0.515 |
 | CIFAR-100 pilot / 20 epochs / seed 8 | Muon + aux AdamW | TurboQuant 2-bit | 12.31 | -0.55 | 68.04 | 0.2164 | 11.83× | 142.934 s | 800 | 0.2990 | 0.512 |
 | CIFAR-100 pilot / 20 epochs / seed 8 | Muon + aux AdamW | TurboQuant 4-bit | 12.81 | -0.05 | 90.48 | 0.3764 | 6.80× | 142.934 s | 800 | 0.2990 | 0.508 |
+| CIFAR / 600s budget / First P@10 ≥ 10% (3/3 reached) | AdamW | FP32 | 10.12 ± 0.03 | +0.00 ± 0.00 | 100.00 ± 0.00 | 2.5600 | 1.00× | 52.773 ± 9.488 s | 433 ± 76 | 0.4383 | — |
+| CIFAR / 600s budget / First P@10 ≥ 10% (3/3 reached) | Muon + aux AdamW | FP32 | 10.24 ± 0.29 | +0.00 ± 0.00 | 100.00 ± 0.00 | 2.5600 | 1.00× | 25.666 ± 1.326 s | 207 ± 12 | 0.2990 | — |
+| CIFAR / 600s budget / First P@10 ≥ 15% (0/3 reached) | AdamW | FP32 | — | — | — | 2.5600 | 1.00× | — | — | 0.4383 | — |
+| CIFAR / 600s budget / First P@10 ≥ 15% (0/3 reached) | Muon + aux AdamW | FP32 | — | — | — | 2.5600 | 1.00× | — | — | 0.2990 | — |
+| CIFAR / 600s budget / First P@10 ≥ 20% (0/3 reached) | AdamW | FP32 | — | — | — | 2.5600 | 1.00× | — | — | 0.4383 | — |
+| CIFAR / 600s budget / First P@10 ≥ 20% (0/3 reached) | Muon + aux AdamW | FP32 | — | — | — | 2.5600 | 1.00× | — | — | 0.2990 | — |
+| CIFAR / 600s budget / First P@10 ≥ 30% (0/3 reached) | AdamW | FP32 | — | — | — | 2.5600 | 1.00× | — | — | 0.4383 | — |
+| CIFAR / 600s budget / First P@10 ≥ 30% (0/3 reached) | Muon + aux AdamW | FP32 | — | — | — | 2.5600 | 1.00× | — | — | 0.2990 | — |
 | 128 updates / original CPU | AdamW | — | — | — | — | — | — | 7.290 ms/step | 128 | — | — |
 | 128 updates / original CPU | Muon + aux AdamW | — | — | — | — | — | — | 18.197 ms/step | 128 | — | — |
 | 128 updates / final CPU | AdamW | — | — | — | — | — | — | 5.082 ms/step (1.435×) | 128 | — | — |
@@ -81,7 +91,7 @@ history rather than appearing as competing primary comparisons.
 <!-- RESULTS:END -->
 
 
-Measured takeaways for the current tuned terminal models:
+Measured takeaways for the labelled studies:
 
 - **Compression is effective for both encoders.** TurboQuant 2-bit reduces
   the gallery from 14.08 to 1.1164 MB (12.61×), with mean P@10 losses of
@@ -96,12 +106,12 @@ Measured takeaways for the current tuned terminal models:
   baseline on these ReLU features, and its mean category precision is lower.
   Neighbor-fidelity comparisons differ: TurboQuant 2-bit has higher R@10 for
   the AdamW model, while four-bit uniform has higher R@10 for both encoders.
-- **Muon has no overall training advantage in this CPU model.** At the fixed
+- **Fashion models show no overall Muon training advantage.** At the fixed
   100-epoch endpoint, AdamW costs 341.97 ± 0.80 s with 88.29 ± 0.67% P@10;
   Muon costs 426.65 ± 1.83 s with 87.14 ± 0.56%. All three paired terminal
   comparisons favor AdamW in both time and precision. Muon retains 14.38% less
   numeric optimizer state, which does not establish lower peak training memory.
-- **Step efficiency and time efficiency differ.** At the earlier 85% target,
+- **Fashion step efficiency and time efficiency differ.** At the earlier 85% target,
   Muon averages 630 rather than 792 updates (20.5% fewer), while times are
   essentially tied at 25.10/25.16 s. Muon wins only one of three paired primary
   timing comparisons. Higher targets favor AdamW. Requiring two consecutive
@@ -119,7 +129,14 @@ Measured takeaways for the current tuned terminal models:
   800 updates, AdamW takes 137.05 s and reaches 11.98% P@10; Muon takes
   142.93 s and reaches 12.86%. Both start at 4.94%. Muon uses 4.3% more
   training time for a 0.88-point higher terminal result in this one seed.
-  A strict matched-quality timing claim needs a new predefined target study.
+  That single-seed endpoint alone cannot establish matched-quality timing;
+  the fresh-seed follow-up supplies that comparison.
+- **CIFAR fresh seeds: Muon reaches 10% with about half the training time.**
+  AdamW needs 433 ± 76 updates and 52.77 ± 9.49 s; Muon needs 207 ± 12
+  and 25.67 ± 1.33 s. All three paired timing comparisons favor Muon,
+  including the two-observation confirmation check. Neither optimizer reaches
+  15%, 20% or 30% in any of the three 600-second runs. This establishes an
+  early-target benefit for the fixed small CPU configuration and validation cohort.
 - **CIFAR pilot: TurboQuant 2-bit improves on affine uniform in both models.**
   AdamW P@10 is 11.52% versus 11.28%; Muon is 12.31% versus 12.16%.
   TurboQuant uses 216,400 bytes versus 240,000 and has higher own-FP32 R@10.
@@ -136,7 +153,8 @@ Training time and optimizer state repeat across formats because a single model
 supplies all five stores; they are not five separate training runs. The next four
 rows strengthen the uniform metadata format on those same Fashion checkpoints.
 The following 18 rows are the separate one-seed CIFAR pilot, including symmetric
-and compact uniform controls. Four CPU implementation rows, six batch-throughput
+and compact uniform controls. Eight fresh-seed CIFAR rows report the four
+predeclared goals, including full-budget non-attainment. Four CPU implementation rows, six batch-throughput
 rows and eight validation-tuned Fashion target-crossing rows follow. These supporting studies answer different
 questions and must not be combined as if they used the same checkpoint.
 
@@ -303,6 +321,65 @@ preserved rather than replaced by the new task. Dataset source and download
 checksum: [official CIFAR-100](https://cave.cs.toronto.edu/kriz/cifar.html), binary
 archive MD5 `03b5dce01913d631647c71ecec9e9cb8`.
 
+
+## Predeclared CIFAR training-time milestones
+
+The follow-up measures time to the same retrieval quality using three fresh
+paired seeds **9/10/11**, distinct from the explored pilot seed 8. Model,
+10,000/2,000 split, 1,000 query images, batch 256, augmentation, FP32 gallery
+and selected rates are fixed to the pilot configuration. No further tuning is
+performed. The official test set remains unused. This tests repeat variation
+on the existing validation cohort rather than untouched-test generalization.
+
+Targets are fixed before the new runs at **10%, 15%, 20% and 30% P@10**.
+Ten percent corresponds to one same-category result among ten, averaged over
+queries; 20% and 30% correspond to two and three. Fifteen percent is an
+intermediate milestone beyond the pilot's approximately 12–13% terminal level.
+All targets remain in the report, including those neither optimizer reaches.
+
+Every model receives **600 seconds of pure training updates**, including batch
+preparation, augmentation, forward, backward and all optimizer/Newton–Schulz
+work. Initial data/model setup is excluded. Checkpoint I/O and offline quality
+evaluation are also excluded, with their costs recorded separately. The final
+indivisible update may slightly exceed the
+budget; its full time is charged. All six models run sequentially in isolated
+single-thread CPU processes, without quality-based early stopping or extensions.
+
+Snapshots include initialization, every 20 updates through update 400, then
+every 40 updates, and the actual budget endpoint even when off-grid. This is
+much denser than the pilot's five-epoch intervals. Three offline quality workers
+run only after all retained training timings finish. Their monitoring costs are
+not reported as query-performance benchmarks.
+
+The primary result is each target's first **observed** qualifying snapshot,
+with the preceding observation retained as a bracket. The exact crossing update
+is unresolved between observations, and a brief crossing can later revert.
+A predefined two-consecutive-observation sensitivity charges time through the
+second confirming checkpoint. Per-seed statuses, observations, actual budget
+usage and paired time/step ratios remain in the evidence. A target receives a
+three-seed mean only when all three runs reach it; otherwise its reach count is
+shown, without averaging only successful runs. Numerical failures retain their
+real observation prefix and are distinguished from full-budget non-attainment.
+Targets and resource caps are not changed after observing the new curves.
+
+All six runs completed their full budgets with finite parameters, producing
+794 checked snapshots. At 10% P@10, the three first-observed AdamW times are
+48.97/63.57/45.77 s, versus Muon's 27.20/24.83/24.98 s at paired seeds 9/10/11.
+The observed time gaps exceed the adjacent checkpoint intervals in every pair.
+Mean paired Muon/AdamW time is 0.497.
+Requiring two consecutive observations gives 56.96 ± 10.64 s for AdamW and
+28.11 ± 1.26 s for Muon, again three paired Muon wins. The 15/20/30% goals
+remain 0/3 reached for both methods, with no success-only time averages.
+
+At the fixed 600-second endpoint, P@10 is 11.88 ± 0.64% for AdamW and
+12.51 ± 0.37% for Muon; the paired Muon differences are +0.42/+1.01/+0.46
+percentage points. These terminal values are a descriptive secondary outcome.
+Mean complete-update costs are 123.08/125.30 ms for AdamW/Muon, so Muon still
+costs slightly more per update. Its smaller step count to 10% outweighs that
+overhead here. The optimizer phase accounts for 2.04%/3.64% of full training
+time; all of it is charged. Retained numeric state is 438,304/299,040 bytes,
+a 31.77% Muon reduction, excluding parameters, gradients and temporary workspace.
+
 ## Needle implementation
 
 AdamW maintains first/second gradient moments and uses decoupled weight decay.
@@ -369,6 +446,9 @@ python experiments/compare_galleries.py --features results/reproduction/cifar_pi
 
 # Metadata-equivalent Fashion control; repeat for each existing encoder/seed archive.
 python experiments/compare_galleries.py --features results/reproduction/integrated/adamw_seed8_features.npz --methods fp32 uniform_2 uniform_4 compact_2 compact_4 --output results/reproduction/shared_min/adamw_seed8.json
+
+# Three fresh paired seeds, 600s training/model, then denser offline quality.
+python experiments/cifar_time_to_quality.py --output-dir results/reproduction/cifar_time_to_quality
 
 # Supporting implementation and batch-cost studies, run separately from queries.
 python experiments/benchmark_system.py --blocks 5 --output results/reproduction/system.json

@@ -31,6 +31,14 @@ CIFAR-100 pilot / 20 epochs / seed 8,Muon + aux AdamW,Uniform symmetric 2-bit,11
 CIFAR-100 pilot / 20 epochs / seed 8,Muon + aux AdamW,Uniform symmetric 4-bit,12.53,-0.33,89.44,0.3600,7.11×,142.934 s,800,0.2990,0.515
 CIFAR-100 pilot / 20 epochs / seed 8,Muon + aux AdamW,TurboQuant 2-bit,12.31,-0.55,68.04,0.2164,11.83×,142.934 s,800,0.2990,0.512
 CIFAR-100 pilot / 20 epochs / seed 8,Muon + aux AdamW,TurboQuant 4-bit,12.81,-0.05,90.48,0.3764,6.80×,142.934 s,800,0.2990,0.508
+CIFAR / 600s budget / First P@10 ≥ 10% (3/3 reached),AdamW,FP32,10.12 ± 0.03,+0.00 ± 0.00,100.00 ± 0.00,2.5600,1.00×,52.773 ± 9.488 s,433 ± 76,0.4383,—
+CIFAR / 600s budget / First P@10 ≥ 10% (3/3 reached),Muon + aux AdamW,FP32,10.24 ± 0.29,+0.00 ± 0.00,100.00 ± 0.00,2.5600,1.00×,25.666 ± 1.326 s,207 ± 12,0.2990,—
+CIFAR / 600s budget / First P@10 ≥ 15% (0/3 reached),AdamW,FP32,—,—,—,2.5600,1.00×,—,—,0.4383,—
+CIFAR / 600s budget / First P@10 ≥ 15% (0/3 reached),Muon + aux AdamW,FP32,—,—,—,2.5600,1.00×,—,—,0.2990,—
+CIFAR / 600s budget / First P@10 ≥ 20% (0/3 reached),AdamW,FP32,—,—,—,2.5600,1.00×,—,—,0.4383,—
+CIFAR / 600s budget / First P@10 ≥ 20% (0/3 reached),Muon + aux AdamW,FP32,—,—,—,2.5600,1.00×,—,—,0.2990,—
+CIFAR / 600s budget / First P@10 ≥ 30% (0/3 reached),AdamW,FP32,—,—,—,2.5600,1.00×,—,—,0.4383,—
+CIFAR / 600s budget / First P@10 ≥ 30% (0/3 reached),Muon + aux AdamW,FP32,—,—,—,2.5600,1.00×,—,—,0.2990,—
 128 updates / original CPU,AdamW,—,—,—,—,—,—,7.290 ms/step,128,—,—
 128 updates / original CPU,Muon + aux AdamW,—,—,—,—,—,—,18.197 ms/step,128,—,—
 128 updates / final CPU,AdamW,—,—,—,—,—,—,5.082 ms/step (1.435×),128,—,—

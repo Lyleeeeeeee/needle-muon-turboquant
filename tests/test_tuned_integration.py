@@ -105,6 +105,7 @@ def test_current_table_emphasizes_joint_results_and_retains_supporting_systems()
     data = json.loads((ROOT / 'report/results.json').read_text())
     data.pop('compact_uniform', None)
     data.pop('cifar_pilot', None)
+    data.pop('cifar_time_to_quality', None)
     data.update(integrated=run, tuned_batch512=parent)
     rows = collect_fresh_rows(data)
     assert len(rows) == 28

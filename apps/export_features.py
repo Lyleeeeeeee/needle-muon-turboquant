@@ -1,4 +1,4 @@
-"""Export common nested MNIST selections from a frozen Needle encoder."""
+"""Export matched MNIST-compatible image selections from a frozen Needle encoder."""
 import argparse
 import hashlib
 import json
@@ -34,7 +34,11 @@ def retrieval_indices(train_count, query_count, reference_train, reference_queri
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--checkpoint', type=Path, required=True)
-    parser.add_argument('--data-dir', type=Path, default=ROOT.parent / 'hw0/data')
+    parser.add_argument('--dataset', choices=['MNIST', 'Fashion-MNIST'], default='MNIST')
+    parser.add_argument('--data-dir', type=Path)
+    parser.add_argument('--validation-size', type=int, default=0,
+                        help='Exclude the fixed training holdout from the gallery pool')
+    parser.add_argument('--split-seed', type=int, default=17)
     parser.add_argument('--reference-train', type=int, default=4096)
     parser.add_argument('--reference-queries', type=int, default=256)
     parser.add_argument('--gallery-size', type=int, default=60000)
@@ -43,6 +47,9 @@ def main():
     parser.add_argument('--seed', type=int, default=7)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    if args.data_dir is None:
+        args.data_dir = (ROOT.parent / 'hw0/data' if args.dataset == 'MNIST'
+                         else ROOT / 'data/fashion-mnist')
     if args.batch_size <= 0:
         parser.error('Batch size must be positive')
     device = ndl.cpu()
@@ -53,9 +60,17 @@ def main():
                                  str(args.data_dir / 'train-labels-idx1-ubyte.gz'))
     test = ndl.data.MNISTDataset(str(args.data_dir / 't10k-images-idx3-ubyte.gz'),
                                 str(args.data_dir / 't10k-labels-idx1-ubyte.gz'))
-    gallery_ids, query_ids = retrieval_indices(
-        len(train), len(test), args.reference_train, args.reference_queries,
-        args.gallery_size, args.queries, args.seed)
+    if not 0 <= args.validation_size < len(train):
+        parser.error('Validation holdout must be smaller than the training set')
+    pool = (np.random.default_rng(args.split_seed).permutation(len(train))[args.validation_size:]
+            if args.validation_size else np.arange(len(train)))
+    try:
+        gallery_positions, query_ids = retrieval_indices(
+            len(pool), len(test), args.reference_train, args.reference_queries,
+            args.gallery_size, args.queries, args.seed)
+    except ValueError as error:
+        parser.error(str(error))
+    gallery_ids = pool[gallery_positions]
 
     def extract(dataset, ids, classify=False):
         batches, correct = [], 0
@@ -79,14 +94,24 @@ def main():
     np.savez(args.output, gallery=gallery, queries=queries,
              gallery_labels=train.y[gallery_ids], query_labels=test.y[query_ids],
              gallery_ids=gallery_ids, query_ids=query_ids,
-             source=np.array('MNIST_frozen_encoder_' + checkpoint_hash[:12]))
-    record = {'checkpoint': str(args.checkpoint), 'checkpoint_sha256': checkpoint_hash,
+             source=np.array(args.dataset + '_frozen_encoder_' + checkpoint_hash[:12]))
+    record = {'dataset': args.dataset,
+              'checkpoint': str(args.checkpoint), 'checkpoint_sha256': checkpoint_hash,
+              'data_files_sha256': {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                                    for p in [args.data_dir / name for name in
+                                    ('train-images-idx3-ubyte.gz', 'train-labels-idx1-ubyte.gz',
+                                     't10k-images-idx3-ubyte.gz', 't10k-labels-idx1-ubyte.gz')]},
+              'validation_size_excluded': args.validation_size,
+              'split_seed': args.split_seed if args.validation_size else None,
+              'gallery_ids_sha256': hashlib.sha256(gallery_ids.astype('int64').tobytes()).hexdigest(),
+              'query_ids_sha256': hashlib.sha256(query_ids.astype('int64').tobytes()).hexdigest(),
               'device': str(device), 'selection_seed': args.seed,
               'reference_train': args.reference_train, 'reference_queries': args.reference_queries,
               'gallery_shape': list(gallery.shape), 'query_shape': list(queries.shape),
               'query_classification_accuracy': accuracy,
-              'query_split': 'MNIST test split, exploratory evaluation',
-              'feature_archive': str(args.output)}
+              'query_split': args.dataset + ' test split, exploratory evaluation',
+              'feature_archive': str(args.output),
+              'feature_archive_sha256': hashlib.sha256(args.output.read_bytes()).hexdigest()}
     args.output.with_suffix('.json').write_text(json.dumps(record, indent=2) + '\n')
     print(json.dumps(record), flush=True)
 

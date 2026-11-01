@@ -19,6 +19,8 @@ import numpy as np
 import needle as ndl
 from needle.quantization import TurboQuantMSE, UniformQuantizer, FloatVectorStore
 
+METHODS = ('fp32', 'uniform_2', 'uniform_4', 'turbo_2', 'turbo_4')
+
 
 def retrieval_quality(indices, truth, labels, k, query_count):
     selected = indices[:query_count]
@@ -115,10 +117,14 @@ def main():
     parser.add_argument('--device', choices=['cpu', 'numpy'], default='cpu')
     parser.add_argument('--metric', choices=['inner_product', 'cosine'], default='inner_product',
                         help='Raw dot products or Needle-normalized query/decoded-block cosine')
+    parser.add_argument('--methods', nargs='+', choices=METHODS, default=METHODS,
+                        help='Run only these stores; useful for independent rotation trials')
     parser.add_argument('--output', type=Path, default=ROOT / 'results/quantization.json')
     parser.add_argument('--worker-method', choices=['fp32', 'uniform_2', 'uniform_4', 'turbo_2', 'turbo_4'], help=argparse.SUPPRESS)
     parser.add_argument('--worker-output', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if len(set(args.methods)) != len(args.methods):
+        parser.error('Methods must be unique')
     if min(args.gallery_size, args.queries, args.dim, args.k, args.block_size, args.repeats) <= 0:
         parser.error('Counts, dimensions, k, block size and repeats must be positive')
     if args.device == 'cpu' and not ndl.cpu().enabled():
@@ -150,7 +156,7 @@ def main():
         folder = Path(folder)
         features = folder / 'features.npz'
         np.savez(features, gallery=gallery, queries=queries, ground_truth=truth, **labels)
-        for method in ['fp32', 'uniform_2', 'uniform_4', 'turbo_2', 'turbo_4']:
+        for method in args.methods:
             output = folder / (method + '.json')
             command = [sys.executable, str(Path(__file__).resolve()), '--worker-method', method,
                        '--features', str(features), '--worker-output', str(output), '--device', args.device,
@@ -164,7 +170,8 @@ def main():
             row['compression_ratio_vs_fp32'] = gallery.nbytes / row['stored_bytes']
             rows.append(row)
             print(method, 'bytes=', row['stored_bytes'], 'recall=', round(row['recall_at_k'], 4), flush=True)
-    report = {'source': source_name, 'gallery_shape': list(gallery.shape), 'query_shape': list(queries.shape),
+    report = {'source': source_name, 'methods': list(args.methods),
+              'gallery_shape': list(gallery.shape), 'query_shape': list(queries.shape),
               'similarity': ('inner_product_on_l2_normalized_inputs' if args.metric == 'inner_product'
                              else 'cosine_on_decoded_vectors'),
               'search_metric': args.metric, 'ground_truth_metric': args.metric, 'seed': args.seed, 'k': args.k,

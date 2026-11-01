@@ -41,7 +41,11 @@ The first implementation provides:
 
 See [quantization methodology](quantization.md) for math, contracts, and memory/timing definitions. The MSE variant is distinct from the unbiased-inner-product QJL extension.
 
-Remaining validation work includes larger Fashion-MNIST feature galleries, multiple rotation seeds, sensitivity to bit width/block size/gallery size, and more complete process-memory profiling. These are experiments on the implemented component rather than assumptions about paper-level results.
+The [joint Fashion retrieval study](../reports/joint_retrieval/summary.md) uses
+55,000-image galleries from all six selected models,2/4-bit stores and three
+Turbo rotation seeds. Further block-size/gallery-size sensitivity and precise
+process-memory profiling remain separate experiments; paper-level results are
+not assumed.
 
 Reference: [TurboQuant Algorithm 1](https://arxiv.org/html/2504.19874v1).
 
@@ -53,4 +57,8 @@ Reference: [TurboQuant Algorithm 1](https://arxiv.org/html/2504.19874v1).
 4. Report model quality separately from each model's compression-induced loss relative to its own FP32 neighbors. Consider matching base quality before attributing differences to compression tolerance.
 5. Keep independent results for each workstream, then test interactions. A valid negative result requires correct code and controlled measurements.
 
-The current MNIST run and synthetic-vector comparisons are integration checks. They do not establish superiority on the final task, paper-scale speedups, or optimizer/quantizer synergy.
+The [joint design](joint_retrieval_design.md) now connects the tuned encoders,
+their own gallery/query embeddings and all five stores. Paired absolute category
+precision and within-model compression changes are reported separately; a
+favorable compression interaction does not guarantee better absolute retrieval
+or end-to-end speed. The earlier MNIST/synthetic records remain component checks.

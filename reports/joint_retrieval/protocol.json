@@ -1,0 +1,119 @@
+{
+  "date": "2026-11-01",
+  "training_source_commit": "b397f002098f57e21aa8ad3fb5909546744eeadb",
+  "dataset": "Fashion-MNIST",
+  "models": [
+    {
+      "encoder": "adamw",
+      "training_seed": 8,
+      "candidate": "low",
+      "training_record": "reports/lr_dataset_study/fashion_repeat_adamw_low_seed8.json",
+      "training_record_sha256": "a309d8c76e6d25cab0e5a69cbc3d908eb8c66f2d3f48bc296b39e46758169f9a",
+      "checkpoint": "results/lr_dataset_study/fashion_repeat_adamw_low_seed8_best.npz",
+      "checkpoint_sha256": "ad445857a12381d15ea4d9d6c2849d63dd0d80357313c6671a1531cd86b5dd23",
+      "adamw_or_auxiliary_learning_rate": 0.001,
+      "muon_matrix_learning_rate": null
+    },
+    {
+      "encoder": "muon",
+      "training_seed": 8,
+      "candidate": "low",
+      "training_record": "reports/lr_dataset_study/fashion_repeat_muon_low_seed8.json",
+      "training_record_sha256": "759ffcb8862004657c94689ca33f03ad821501d9d543aeca8d10081992a99e68",
+      "checkpoint": "results/lr_dataset_study/fashion_repeat_muon_low_seed8_best.npz",
+      "checkpoint_sha256": "1ced19c4317261d292188637eff8f29897f736c627bab4101c929d02e11f8750",
+      "adamw_or_auxiliary_learning_rate": 0.001,
+      "muon_matrix_learning_rate": 0.007
+    },
+    {
+      "encoder": "adamw",
+      "training_seed": 9,
+      "candidate": "low",
+      "training_record": "reports/lr_dataset_study/fashion_repeat_adamw_low_seed9.json",
+      "training_record_sha256": "31ae69b7ced87a14d2e13966211ecdf42f10795fc6814ee88494fdab2b633c84",
+      "checkpoint": "results/lr_dataset_study/fashion_repeat_adamw_low_seed9_best.npz",
+      "checkpoint_sha256": "b1bb97dc7b1a22bfa219a62af1219a2db9544e8c6157ce9029983f29356e6e1a",
+      "adamw_or_auxiliary_learning_rate": 0.001,
+      "muon_matrix_learning_rate": null
+    },
+    {
+      "encoder": "muon",
+      "training_seed": 9,
+      "candidate": "low",
+      "training_record": "reports/lr_dataset_study/fashion_repeat_muon_low_seed9.json",
+      "training_record_sha256": "9a250f359e54ba0b548305c913419ecc5bf7d6d3027f4c5bf9888631a5f3413e",
+      "checkpoint": "results/lr_dataset_study/fashion_repeat_muon_low_seed9_best.npz",
+      "checkpoint_sha256": "ccc89f57eb0c3cac03e6e6d0993e35420875c94a3ba1582764fcc12cd1d54733",
+      "adamw_or_auxiliary_learning_rate": 0.001,
+      "muon_matrix_learning_rate": 0.007
+    },
+    {
+      "encoder": "adamw",
+      "training_seed": 10,
+      "candidate": "low",
+      "training_record": "reports/lr_dataset_study/fashion_repeat_adamw_low_seed10.json",
+      "training_record_sha256": "a1ca139de59de707dad04d28b4f8a322a6327e2f1b30d83d4e99e2b9bc8a49c7",
+      "checkpoint": "results/lr_dataset_study/fashion_repeat_adamw_low_seed10_best.npz",
+      "checkpoint_sha256": "982f38af68dfc2822e64375de2fda158387c6d46c7ac5d632ec3b7fafbbfc845",
+      "adamw_or_auxiliary_learning_rate": 0.001,
+      "muon_matrix_learning_rate": null
+    },
+    {
+      "encoder": "muon",
+      "training_seed": 10,
+      "candidate": "low",
+      "training_record": "reports/lr_dataset_study/fashion_repeat_muon_low_seed10.json",
+      "training_record_sha256": "a70908d9adb6d0ad7e40adb2af62ac719a9af12123c4e0822d8a47b33497c022",
+      "checkpoint": "results/lr_dataset_study/fashion_repeat_muon_low_seed10_best.npz",
+      "checkpoint_sha256": "990aac8e66e031a4a3da932e9d3764131a5645b8e8b2750982b0a7e60769f4c3",
+      "adamw_or_auxiliary_learning_rate": 0.001,
+      "muon_matrix_learning_rate": 0.007
+    }
+  ],
+  "training_seeds": [
+    8,
+    9,
+    10
+  ],
+  "gallery_rows": 55000,
+  "query_rows": 1000,
+  "dimensions": 64,
+  "k": 10,
+  "validation_size_excluded": 5000,
+  "split_seed": 17,
+  "image_selection_seed": 7,
+  "rotation_seeds": [
+    7,
+    8,
+    9
+  ],
+  "metric": "cosine",
+  "block_size": 256,
+  "warmups": 1,
+  "query_timing_repeats": 3,
+  "methods": [
+    "fp32",
+    "uniform_2",
+    "uniform_4",
+    "turbo_2",
+    "turbo_4"
+  ],
+  "primary_metric": "same_label_precision_at10",
+  "source_sha256": {
+    "apps/export_features.py": "39b735e2f3c818faea8a90a10587ea4120becb6b399abf5b943c441db1c8199c",
+    "apps/benchmark_quantization.py": "7284466bb88f43b2ca16a96ea1ac884a2d1de51626278802e617aa1a424faf22",
+    "apps/models.py": "550aa459019fe1e9e9a78e15ca64ceda510f4de149e99731a6f8000425c760df",
+    "apps/encoder_checkpoint.py": "0d48f0fe69d459d49937a59fffbcc875c2c1e8a0afd81f35a0696afa2230b119",
+    "python/needle/quantization.py": "559555f26723454e0041f5914ee00c7cdfd719afce819995cb92d8a4529dad8a",
+    "src/ndarray_backend_cpu.cc": "46cae62821d42a596d7ecf8b811832f19cb7cfeb1aea9bf1d24e0a75bdfe2d26",
+    "src/quantization_cpu.h": "03b34cbc88dd79de14fdbb92297e4f09fa8b177c43c4dd432ba61e2c2a2b36a2",
+    "experiments/run_joint_retrieval.py": "f7b0dee18bbe3e1f19311d0466f93b18a481b156ff44ac489cc2d07fdb50c8c7"
+  },
+  "data_files_sha256": {
+    "train-images-idx3-ubyte.gz": "3aede38d61863908ad78613f6a32ed271626dd12800ba2636569512369268a84",
+    "train-labels-idx1-ubyte.gz": "a04f17134ac03560a47e3764e11b92fc97de4d1bfaf8ba1a3aa29af54cc90845",
+    "t10k-images-idx3-ubyte.gz": "346e55b948d973a97e58d2351dde16a484bd415d4595297633bb08f03db6a073",
+    "t10k-labels-idx1-ubyte.gz": "67da17c76eaffca5446c3361aaab5c3cd6d1c2608764d35dfb1850b086bf8dd5"
+  },
+  "selection_rule": "use_all_previously_fixed_models_no_new_selection"
+}

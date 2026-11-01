@@ -136,17 +136,40 @@ For a fresh full reproduction, archive the published `reports/lr_dataset_study/`
 directory outside that output path first; its matching checkpoints are local.
 The runner then creates a new set of records and checkpoints instead of silently
 mixing old records with missing model files.
-This study evaluates classification. The existing `export_features.py` workflow
-is MNIST-specific; selected Fashion retrieval export and compression comparisons
-remain separate work.
+This study evaluates classification. The joint retrieval study below uses its
+fixed selected models to evaluate embeddings and compression separately.
+
+## Joint retrieval from tuned encoders
+
+The [joint study](reports/joint_retrieval/summary.md) connects each tuned model to
+its own 64D gallery/query embeddings and FP32, uniform 2/4-bit and TurboQuant-MSE 2/4-bit
+stores. All six models share 55,000 gallery images and 1,000 query image IDs. The
+fixed validation holdout is excluded from the gallery. Three rotation trials
+are averaged within each training seed before aggregating three training seeds.
+
+```bash
+python experiments/run_joint_retrieval.py
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 python experiments/summarize_joint_retrieval.py
+```
+
+`export_features.py --dataset Fashion-MNIST --validation-size 5000 --split-seed 17`
+supports dataset-aware provenance and holdout exclusion; legacy MNIST selections
+are preserved. `benchmark_quantization.py --methods ...` selects method workers
+without changing their algorithms. The report separates category precision,
+own-model FP32-neighbor recall, signed compression loss, persistent bytes and
+whole-query-batch time. Classification test data was already viewed; this is a
+fixed-model retrieval extension with no new selection or untouched-test claim.
+Only gallery vectors are compressed; queries remain float32.
+Local models from the learning-rate study are required. See the report for
+artifact checks and fresh-reproduction instructions.
 
 ## Verification and scope
 
 Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.
 
 The current quantizer reproduces the MSE variant. QJL residual correction, LLM
-KV-cache experiments, GPU quantization kernels and the formal Fashion-MNIST
-joint study remain later work. Comparative findings depend on dataset, bit
+KV-cache experiments and GPU quantization kernels remain later work.
+Comparative findings depend on dataset, bit
 width, metadata amortization and implementation overhead; no acceleration or
 synergy is assumed.
 

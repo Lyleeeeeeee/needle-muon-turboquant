@@ -45,7 +45,12 @@ and gallery sizes using frozen checkpoints and identical query images. The
 completed [scale-study results](reports/quantization_scale_summary.md) cover both
 training sizes, both gallery sizes, and three rotations on 1,000 common queries.
 Larger-data training helps both methods; uniform still has better exact-neighbor
-recall in these MNIST experiments. The
+recall under the original raw-inner-product scorer. The subsequent
+[quality diagnosis](reports/quantization_diagnosis.md) finds a substantial
+reconstructed-norm scoring effect and coordinate dependence. With the same
+decoded-cosine scorer, TurboQuant leads at two bits and uniform leads at four
+bits on the full learned gallery. Those are independent-reference quality
+experiments; the production search default remains raw inner product. The
 trainer accepts `--checkpoint-output results/encoder.npz`; independently expand
 retrieval without retraining with:
 

@@ -2,6 +2,12 @@
 
 Both approved checks are complete: larger retrieval evaluation with frozen weights, and larger-data encoder training.
 
+Follow-up: the [independent quality diagnosis](quantization_diagnosis.md) finds
+that reconstructed-norm variation affects the raw-IP scorer used below. A fair
+decoded-cosine comparison greatly improves both methods and reverses the
+two-bit ordering. These original measurements are preserved for their stated
+scoring rule; they do not establish general task unsuitability.
+
 ## Protocol and verification
 
 The same Needle CPU 784-128-64-10 ReLU model was trained with AdamW (learning rate 0.003, batch 64, seed 7) for three epochs on either 4,096 or 60,000 images. Both models use exactly the same nested 4,096/60,000-image galleries and the same 1,000 test-split query images. Features are L2 normalized. Top-10 FP32 neighbors are computed separately for each model and gallery.

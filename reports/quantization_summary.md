@@ -5,6 +5,11 @@ Follow-up: the [completed scale study](quantization_scale_summary.md) expands to
 below are preserved. Larger-data training improves retrieval, but the uniform
 baseline advantage remains in the tested configurations.
 
+The later [quality diagnosis](quantization_diagnosis.md) narrows that conclusion:
+the original raw-inner-product scorer is sensitive to reconstructed norms;
+decoded-cosine scoring makes TurboQuant competitive at two bits. Existing
+results below retain their original scoring definition.
+
 ## What is implemented
 
 TurboQuant-MSE now has exact-distribution codebooks, Needle rotations, native CPU 2/4-bit packing, block decoding/search, and NPZ persistence. FP32 and packed affine-uniform baselines use the same retrieval pipeline. All 37 current checks pass locally.

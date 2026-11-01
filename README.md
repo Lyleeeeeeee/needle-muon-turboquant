@@ -204,6 +204,23 @@ setup and terminal evaluation/export do not. Previously selected learning rates
 are retained, so this is not a new equal-time hyperparameter search. Historical
 epoch-budget records and all optimizer/quantizer formulas remain unchanged.
 
+## CPU Compact indexing optimization
+
+The [implementation change log](docs/project_change_log.md) records the
+rank-two loops and coordinate-carry replacement for the inherited HW3 Compact
+indexing loop,
+including rationale, exact scope and evidence for the final project report.
+The [separate kernel comparison](reports/compact_optimization/summary.md) measures
+both AdamW and Muon with unchanged formulas and copy/layout-conversion counts.
+
+```bash
+python experiments/benchmark_compact_optimization.py
+```
+
+Historical experiment validators pin earlier backend source hashes. Use their
+recorded Git revision to reproduce them; their published timing results have
+not been replaced by the optimized backend measurements.
+
 ## Verification and scope
 
 Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.

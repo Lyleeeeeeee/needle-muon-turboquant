@@ -3,8 +3,10 @@
 #include <pybind11/stl.h>
 
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 namespace needle {
 namespace cpu {
@@ -62,17 +64,36 @@ void Compact(const AlignedArray& a, AlignedArray* out, std::vector<int32_t> shap
    *  function will implement here, so we won't repeat this note.)
    */
   /// BEGIN SOLUTION
-  for (size_t i = 0; i < out->size; i++) {
-    size_t remaining = i;
-    size_t source_index = offset;
-
-    for (int d = static_cast<int>(shape.size()) - 1; d >= 0; d--) {
-      size_t coordinate = remaining % shape[d];
-      remaining /= shape[d];
-      source_index += coordinate * strides[d];
+  // A two-dimensional copy needs no general coordinate vector or carry loop.
+  if (shape.size() == 2) {
+    size_t destination = 0;
+    int64_t row_source = static_cast<int64_t>(offset);
+    for (int32_t row = 0; row < shape[0]; row++) {
+      int64_t source_index = row_source;
+      for (int32_t column = 0; column < shape[1]; column++) {
+        out->ptr[destination++] = a.ptr[source_index];
+        source_index += strides[1];
+      }
+      row_source += strides[0];
     }
-
+    return;
+  }
+  std::vector<int32_t> coordinate(shape.size(), 0);
+  int64_t source_index = static_cast<int64_t>(offset);
+  for (size_t i = 0; i < out->size; i++) {
     out->ptr[i] = a.ptr[source_index];
+    if (i + 1 == out->size) break;
+
+    // Advance the existing position; carry only at dimension boundaries.
+    for (int d = static_cast<int>(shape.size()) - 1; d >= 0; d--) {
+      coordinate[d]++;
+      if (coordinate[d] < shape[d]) {
+        source_index += strides[d];
+        break;
+      }
+      coordinate[d] = 0;
+      source_index -= static_cast<int64_t>(shape[d] - 1) * strides[d];
+    }
   }
   /// END SOLUTION
 }

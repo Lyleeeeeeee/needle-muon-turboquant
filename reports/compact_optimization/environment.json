@@ -1,0 +1,6 @@
+{
+  "compiler": "Apple clang version 16.0.0 (clang-1600.0.26.4)\nTarget: arm64-apple-darwin23.6.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
+  "flags": "-std=c++17 -O2 -shared -fPIC; macOS SDK and Python/pybind11 include paths from tools/build_cpu.py",
+  "thread_limits": "OPENBLAS_NUM_THREADS=OMP_NUM_THREADS=VECLIB_MAXIMUM_THREADS=1",
+  "report_generator_sha256": "d4667c94b0795e093f398188229095b9e289da0e2fa8d29ee03ac8c87dcbc68a"
+}

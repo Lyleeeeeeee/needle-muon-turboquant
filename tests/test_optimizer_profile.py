@@ -30,14 +30,30 @@ def test_instrumentation_counts_ns_products_and_restores_backend():
     assert any(not np.array_equal(a, p.numpy()) for a, p in zip(before, fixture['parameters']))
 
 
-def test_reference_profile_keeps_original_calls_for_comparison():
+def test_reference_profile_keeps_original_calls_for_comparison(monkeypatch):
+    import importlib
     from profile_optimizer import make_fixture, instrumented_steps
 
+    monkeypatch.setattr(importlib.import_module('needle.backend_ndarray.ndarray'),
+                        '_CPU_MATMUL_MODE', 'reference', raising=False)
     result = instrumented_steps(make_fixture('muon', use_tiled_ns=False), 1)
     assert result['logical_ns_matmul_calls'] == 45
     assert result['ndarray_matmul']['calls'] == 45
     assert result['native_kernels']['compact']['calls'] == 157
     assert result['packed_layout']['passes'] == 0
+
+
+def test_profiler_accounts_for_shared_native_products(monkeypatch):
+    import importlib
+    from profile_optimizer import make_fixture, instrumented_steps
+
+    monkeypatch.setattr(importlib.import_module('needle.backend_ndarray.ndarray'),
+                        '_CPU_MATMUL_MODE', 'strided', raising=False)
+    result = instrumented_steps(make_fixture('muon', use_tiled_ns=False), 1)
+    assert result['logical_ns_matmul_calls'] == 45
+    assert result['ndarray_matmul']['calls'] == 45
+    assert result['native_kernels']['matmul_strided']['calls'] == 45
+    assert result['native_kernels']['matmul_strided']['seconds'] > 0
 
 
 def test_instrumented_and_plain_updates_produce_identical_parameters():

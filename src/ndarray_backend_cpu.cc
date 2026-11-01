@@ -438,6 +438,7 @@ void ReduceSum(const AlignedArray& a, AlignedArray* out, size_t reduce_size) {
 
 #include "quantization_cpu.h"
 #include "muon_cpu.h"
+#include "matmul_cpu.h"
 
 PYBIND11_MODULE(ndarray_backend_cpu, m) {
   namespace py = pybind11;
@@ -497,6 +498,7 @@ PYBIND11_MODULE(ndarray_backend_cpu, m) {
 
   m.def("matmul", Matmul);
   m.def("matmul_tiled", MatmulTiled);
+  m.def("matmul_strided", matmul_detail::Strided);
 
   m.def("reduce_max", ReduceMax);
   m.def("reduce_sum", ReduceSum);

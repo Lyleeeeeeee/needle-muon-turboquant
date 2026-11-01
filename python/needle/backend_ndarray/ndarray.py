@@ -1,5 +1,6 @@
 import math
 import operator
+import os
 from functools import reduce
 from typing import Any, Callable, Iterable, Union
 
@@ -10,6 +11,10 @@ try:
     from . import ndarray_backend_cpu
 except ImportError:
     ndarray_backend_cpu = None
+
+_CPU_MATMUL_MODE = os.environ.get("NEEDLE_CPU_MATMUL", "strided")
+if _CPU_MATMUL_MODE not in ("strided", "reference"):
+    raise ValueError("NEEDLE_CPU_MATMUL must be 'strided' or 'reference'")
 
 
 # math.prod not in Python 3.7
@@ -558,13 +563,10 @@ class NDArray:
         be 2D (i.e., we don't handle batch matrix multiplication), and that the
         sizes match up properly for matrix multiplication.
 
-        In the case of the CPU backend, you will implement an efficient "tiled"
-        version of matrix multiplication for the case when all dimensions of
-        the array are divisible by self.device.__tile_size__.  In this case,
-        the code below will restride and compact the matrix into tiled form,
-        and then pass to the relevant CPU backend.  For the CPU version we will
-        just fall back to the naive CPU implementation if the array shape is not
-        a multiple of the tile size
+        Positive tile-aligned native CPU products pack directly from strided
+        views in C++. NEEDLE_CPU_MATMUL=reference retains the course wrapper,
+        which compacts normal inputs before creating tiled copies. Unsupported
+        dimensions fall back to the original naive CPU implementation.
 
         The GPU (and numpy) versions don't have any tiled version (or rather,
         the GPU version will just work natively by tiling any input size).
@@ -574,6 +576,16 @@ class NDArray:
         assert self.shape[1] == other.shape[0]
 
         m, n, p = self.shape[0], self.shape[1], other.shape[1]
+
+        # Pack directly from views, including transposes, in the shared CPU path.
+        # Keep the course wrapper below for ablations and unsupported backends/shapes.
+        if (_CPU_MATMUL_MODE == "strided" and self.device == cpu()
+                and other.device == self.device and hasattr(self.device, "matmul_strided")
+                and all(d > 0 and d % self.device.__tile_size__ == 0 for d in (m, n, p))):
+            out = NDArray.make((m, p), device=self.device)
+            self.device.matmul_strided(self._handle, other._handle, out._handle, m, n, p,
+                                       self.strides, other.strides, self._offset, other._offset)
+            return out
 
         # if the matrix is aligned, use tiled matrix multiplication
         if hasattr(self.device, "matmul_tiled") and all(

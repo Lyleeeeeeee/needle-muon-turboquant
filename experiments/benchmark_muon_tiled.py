@@ -30,6 +30,8 @@ def parameter_hash(parameters):
 
 
 def worker(args):
+    # Isolate this earlier optimization when replaying it after shared Matmul changes.
+    os.environ['NEEDLE_CPU_MATMUL'] = 'reference'
     import numpy as np
     sys.path[:0] = [str(ROOT / 'python'), str(ROOT / 'apps')]
     import needle as ndl

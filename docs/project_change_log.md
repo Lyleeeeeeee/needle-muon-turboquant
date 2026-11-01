@@ -115,3 +115,62 @@ layout reuse alone. These are execution-speed measurements at fixed work,
 not evidence that Muon now beats AdamW at equal time. The 220-second retrieval
 comparison has not been rerun. Five timing repetitions use one training seed,
 not five independent model-quality seeds.
+## 2026-11-01: Shared stride-aware public CPU Matmul
+
+**Reason.** The user asked why layout work was optimized only inside Muon and
+approved trying the shared matrix multiplication path. Both optimizers call
+the public product in model forward/backward computation. Baseline revision:
+`ac6dca9b34b60d968558e0978667b69a33b0949e`, with optimized Compact and native NS.
+
+**Change.** `src/matmul_cpu.h` packs input views directly into the existing tiled
+format, incorporating strides and offsets, calls unchanged MatmulTiled/AlignedDot,
+and directly unpacks the ordinary output. Transposed inputs avoid an extra
+whole-matrix normal-layout copy. Contiguous inputs still require packing, but
+use specialized native loops with fewer Python dispatches/temporary objects.
+Three per-call packed buffers hold MN+NP+MP floats and are released afterwards.
+There is no persistent cache or new optimizer state. The original public
+Matmul wrapper was inherited from the course; this is a project extension.
+
+**Dispatch and isolation.** Positive tile-aligned native CPU products select the
+new path by default. `NEEDLE_CPU_MATMUL=reference` before import preserves the
+course wrapper. Other shapes/devices and older extensions fall back. This switch
+does not disable the previous native Muon NS optimization. Both arms retain it;
+earlier-stage benchmark workers now explicitly select the reference public path
+to keep their own ablations isolated. Optimizer/math/model/data are unchanged.
+
+**Verification.** Before implementation, 19 direct-native/dispatch tests failed
+for the missing API and two existing-behavior tests passed; the new profiler
+test also failed for the missing counter. After implementation the full suite
+passes 148 checks. Tests include exact old-path parity, independent float64
+products/gradients, source preservation, transpose, slicing, nonzero offsets,
+broadcast and negative strides, invalid dimensions/buffers/aliasing, dispatch,
+reference mode, missing native entry and NumPy fallback. The profiler includes
+the new native call rather than attributing its time to Python.
+
+**Paired execution measurements.** Five alternating process pairs on one final
+binary measure shared products, optimizer-only controls and full 128-update
+Fashion-MNIST loops. Same model/split/batches/seed/rates; native NS on for both
+arms. Product paired-median speedups: input forward 1.264x, weight gradient
+1.295x, activation gradient 1.334x, 128-square 1.313x. The unsupported classifier
+fallback and optimizer-only controls are approximately unchanged. Full training
+median update times: AdamW 8.402→7.283 ms, Muon 15.933→14.769 ms. Paired median
+speedups are 1.154x and 1.069x respectively; ratios of separate time medians
+need not equal the median within-pair ratio. All parameters/losses/embeddings
+are bit-identical and the loss/feature traces reproduce the preceding study.
+
+**Layout accounting.** Each training update still has 15 public matrix products:
+12 aligned and three naive classifier products. Generic Compact calls decrease
+63→19 for AdamW and 70→26 for Muon, but 36 layout copies now occur inside the
+new public native call. Total passes excluding unchanged native NS decrease
+63→55 and 70→62: eight whole-matrix copies disappear in each method, saving
+864,256 bytes of float32 layout writes. Muon's unchanged native NS adds 21
+passes/1,146,880 bytes to each Muon arm. These are instrumented/derived logical
+layout writes, not physical DRAM traffic or process memory measurements.
+
+**Interpretation.** The change improves shared framework execution, including
+AdamW, and is separate from the earlier Muon-specific optimization. Muon still
+takes roughly twice as long per complete update in this small CPU model. The
+five blocks are timing repetitions of one training seed; no 220-second
+equal-time training/retrieval comparison has been rerun. See the
+[accepted design](shared_matmul_design.md) and
+[complete measurements](../reports/shared_matmul/summary.md).

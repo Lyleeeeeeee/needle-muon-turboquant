@@ -241,6 +241,31 @@ python experiments/benchmark_muon_tiled.py
 python experiments/summarize_muon_tiled.py
 ```
 
+## Shared stride-aware CPU Matmul
+
+The public native CPU matrix product now packs directly from input views,
+including transposes, and unpacks directly into ordinary contiguous outputs.
+This benefits both AdamW and Muon forward/backward passes. The tiled arithmetic
+is unchanged; unsupported dimensions/devices and older extensions fall back.
+
+Set `NEEDLE_CPU_MATMUL=reference` before importing Needle to use the original
+course wrapper; the default is `strided`. This switch is independent of
+`use_tiled_ns`: Muon's native internal NS products remain enabled in both arms
+of this shared-path ablation. Earlier-stage benchmark workers explicitly select
+the reference public path to keep their historical optimizations isolated.
+
+Five paired short training measurements give median update times of
+8.40 to 7.28 ms for AdamW and 15.93 to 14.77 ms for Muon. Parameters, losses and
+embeddings agree bit-for-bit; this is not a new equal-time retrieval result.
+See the [design](docs/shared_matmul_design.md),
+[raw evidence and report](reports/shared_matmul/summary.md) and
+[durable change log](docs/project_change_log.md).
+
+```bash
+python experiments/benchmark_shared_matmul.py --blocks 5
+python experiments/summarize_shared_matmul.py
+```
+
 ## Verification and scope
 
 Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.

@@ -85,6 +85,8 @@ def prepare_baseline():
 
 
 def worker(args):
+    # Preserve the original public Matmul wrapper for this earlier-stage ablation.
+    os.environ['NEEDLE_CPU_MATMUL'] = 'reference'
     import numpy as np
 
     # Import Needle before helpers that insert the main Python path. Its entire

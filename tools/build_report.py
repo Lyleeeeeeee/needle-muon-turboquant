@@ -15,7 +15,8 @@ sys.path.insert(0, str(ROOT / 'experiments'))
 from common import (SEEDS, aggregate_quality, distribution, select_configuration,
                     validate_pair, validate_timed_pair)
 from benchmark_system import validate_measurements
-from time_to_quality import TARGETS, checkpoint_schedule, summarize_trajectories
+from benchmark_batch import summarize_batches
+from time_to_quality import TARGETS, THREADS, checkpoint_schedule, summarize_trajectories
 
 STORES = {'fp32': 'FP32', 'uniform_2': 'Uniform 2-bit', 'uniform_4': 'Uniform 4-bit',
           'turbo_2': 'TurboQuant 2-bit', 'turbo_4': 'TurboQuant 4-bit'}
@@ -242,6 +243,51 @@ def collect_time_to_quality_rows(run, baseline):
     return rows
 
 
+def collect_batch_rows(run, baseline):
+    """Keep fixed-image throughput separate from convergence and query timing."""
+    p, before = run['protocol'], baseline['protocol']
+    expected = dict(dataset='Fashion-MNIST', study='batch_training_cost', smoke=False,
+                    blocks=5, batch_sizes=[64, 256, 512], seed=8, split_seed=17,
+                    train_rows=55000, validation_rows=5000, measured_samples=32768, warmup_samples=2048,
+                    architecture=[784, 128, 128, 128, 64, 10],
+                    rates={'adamw_auxiliary': .001, 'muon': .007}, weight_decay=.01,
+                    thread_limits=THREADS)
+    if any(p.get(k) != v for k, v in expected.items()):
+        raise ValueError('Batch timing protocol differs from the fixed-image diagnostic')
+    train_files = {name: sha for name, sha in before['data_files_sha256'].items() if name.startswith('train-')}
+    if p['backend'] != before['backend'] or p['data_files_sha256'] != train_files:
+        raise ValueError('Batch timing used a different backend or dataset')
+    for path, sha in before['source_sha256'].items():
+        if path != 'experiments/run_report.py' and p['source_sha256'].get(path) != sha:
+            raise ValueError('Batch timing shared source differs: ' + path)
+    original = training_by_seed(baseline['training_records'])
+    for r in run['runs']:
+        old = original[r['optimizer'], 8]
+        if (r['protocol_sha256'] != json_hash(p)
+                or r['native_extension_sha256'] != p['backend']['extension_sha256']
+                or r['measured_samples'] != 32768 or r['warmup_samples'] != 2048
+                or any(r[key] != old[key] for key in ('initial_parameter_sha256', 'train_indices_sha256',
+                                                      'total_parameter_count', 'muon_parameter_count',
+                                                      'optimizer_numeric_state_bytes'))):
+            raise ValueError('Batch worker start, work, state or provenance differs')
+    summary = summarize_batches(run['runs'], p['blocks'], p['batch_sizes'])
+    if summary != run['summary']:
+        raise ValueError('Batch timing summaries differ from raw measurements')
+    rows = []
+    for batch in p['batch_sizes']:
+        for method, label in OPTIMIZERS.items():
+            metric = summary[str(batch)][method]
+            cost = metric['training_us_per_image']
+            rows.append(dict(study=f'Batch {batch} / 32,768 images', optimizer=label, store='—',
+                             precision_mean=None, precision_sd=None, recall_mean=None, recall_sd=None,
+                             gallery_bytes=None, compression=None, training_cost=cost['mean'],
+                             training_sd=cost['sample_std'], training_unit='µs/image', speedup=None,
+                             query_mean=None, query_sd=None, precision_change_mean=None, precision_change_sd=None,
+                             updates_mean=metric['updates'], updates_sd=0,
+                             optimizer_state_bytes=1139280 if method == 'adamw' else 975440))
+    return rows
+
+
 def collect_fresh_rows(data):
     """One table: all current-backend methods, terminal checks, and total systems cost."""
     if set(data['studies']) != {'epochs', 'timed'}:
@@ -306,7 +352,8 @@ def collect_fresh_rows(data):
                                updates_mean=128, updates_sd=0, optimizer_state_bytes=None))
     if 'time_to_quality' in data:
         rows.extend(collect_time_to_quality_rows(data['time_to_quality'], data['studies']['epochs']))
-    return rows + checks
+    batch_rows = collect_batch_rows(data['batch_timing'], data['studies']['epochs']) if 'batch_timing' in data else []
+    return rows + checks + batch_rows
 
 
 def collect_rows(data):
@@ -321,7 +368,7 @@ def display_rows(rows):
     for r in rows:
         cost = ('—' if r['training_cost'] is None else
                 f"{r['training_cost']:.3f} ms/step" if r['training_sd'] is None else
-                pm(r['training_cost'], r['training_sd'], digits=3) + ' s')
+                pm(r['training_cost'], r['training_sd'], digits=3) + ' ' + r['training_unit'])
         if r['speedup'] is not None:
             cost += f" ({r['speedup']:.3f}×)"
         delta = ('—' if r['precision_change_mean'] is None else
@@ -490,6 +537,7 @@ def main():
     parser.add_argument('--verify-artifacts', action='store_true', help='Audit original local models/features/query reports after retained timings')
     parser.add_argument('--time-to-quality-run', type=Path,
                         help='Attach a complete, validated time-to-quality run to the same evidence/table')
+    parser.add_argument('--batch-run', type=Path, help='Attach fixed-image batch timing to the same evidence/table')
     args = parser.parse_args()
     evidence = ROOT / 'report/results.json'
     data = json.loads(evidence.read_text())
@@ -498,6 +546,11 @@ def main():
         data['time_to_quality'] = json.loads(path.read_text())
         data['provenance']['time_to_quality_raw_path'] = str(path.relative_to(ROOT))
         data['provenance']['time_to_quality_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if args.batch_run:
+        path = args.batch_run.resolve()
+        data['batch_timing'] = json.loads(path.read_text())
+        data['provenance']['batch_raw_path'] = str(path.relative_to(ROOT))
+        data['provenance']['batch_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
     rows = collect_rows(data)
     if json_hash(data['system']) != data['provenance']['system_raw_sha256']:
         raise ValueError('Curated systems data differs from its frozen raw report')
@@ -517,6 +570,13 @@ def main():
         for path, expected in run['protocol']['source_sha256'].items():
             if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
                 raise ValueError('Measured time-to-quality source changed: ' + path)
+    if 'batch_timing' in data:
+        run = data['batch_timing']
+        if json_hash(run) != data['provenance']['batch_raw_sha256']:
+            raise ValueError('Batch timing differs from its frozen raw run')
+        for path, expected in run['protocol']['source_sha256'].items():
+            if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
+                raise ValueError('Measured batch source changed: ' + path)
     for method in OPTIMIZERS:
         selection = data['locked_rate_selection']
         if select_configuration(selection['all_candidates'][method]) != selection['selected'][method]:
@@ -528,7 +588,7 @@ def main():
         print('Local artifact proof:', json.dumps(proof, sort_keys=True))
         if not args.check:
             data['provenance']['artifact_validation'] = proof
-    if not args.check and (args.verify_artifacts or args.time_to_quality_run):
+    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run):
         evidence.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
     readme = ROOT / 'README.md'
     current = readme.read_text()

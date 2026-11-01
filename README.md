@@ -59,6 +59,12 @@ model/data/source/native hashes, paired differences and artifact-validation proo
 | 128 updates / original CPU | Muon + aux AdamW | — | — | — | — | — | — | 18.197 ms/step | 128 | — | — |
 | 128 updates / final CPU | AdamW | — | — | — | — | — | — | 5.082 ms/step (1.435×) | 128 | — | — |
 | 128 updates / final CPU | Muon + aux AdamW | — | — | — | — | — | — | 10.341 ms/step (1.749×) | 128 | — | — |
+| Batch 64 / 32,768 images | AdamW | — | — | — | — | — | — | 113.550 ± 1.742 µs/image | 512 | 1.1393 | — |
+| Batch 64 / 32,768 images | Muon + aux AdamW | — | — | — | — | — | — | 231.198 ± 1.032 µs/image | 512 | 0.9754 | — |
+| Batch 256 / 32,768 images | AdamW | — | — | — | — | — | — | 69.215 ± 0.401 µs/image | 128 | 1.1393 | — |
+| Batch 256 / 32,768 images | Muon + aux AdamW | — | — | — | — | — | — | 98.658 ± 0.455 µs/image | 128 | 0.9754 | — |
+| Batch 512 / 32,768 images | AdamW | — | — | — | — | — | — | 62.721 ± 0.341 µs/image | 64 | 1.1393 | — |
+| Batch 512 / 32,768 images | Muon + aux AdamW | — | — | — | — | — | — | 77.458 ± 0.406 µs/image | 64 | 0.9754 | — |
 <!-- RESULTS:END -->
 
 Measured takeaways:
@@ -83,6 +89,14 @@ Measured takeaways:
   preserves that wall-time ordering in all 12 comparisons. Both methods already
   exceed 80% at the first 430-update check, so that target does not resolve their
   first crossing more finely.
+- Increasing batch size amortizes Muon's per-update overhead. At batch 64/256/512,
+  AdamW costs 113.55/69.22/62.72 µs per image and Muon costs
+  231.20/98.66/77.46 µs per image (five-run means). Paired Muon/AdamW cost ratios
+  fall from 2.04× to 1.43× to 1.23×. The excess decreases from 117.65 to 14.74 µs
+  per image, an 87.5% reduction. Muon's optimizer still costs about 10.5–10.7 ms
+  per update; larger batches share that cost across more images. Both optimizers
+  gain throughput, and AdamW remains faster at each matched batch. Retrieval
+  convergence at the larger batches has not been measured.
 - The three systems changes accelerate complete fixed-work updates by 1.435×
   for AdamW and 1.749× for Muon, preserving exact outputs. Muon's optimizer
   computation remains more expensive per update in this small CPU model.
@@ -94,8 +108,10 @@ do not represent five separate training runs. The next eight rows measure the
 steps and training seconds to first observe each retrieval target; the study
 label includes the reach count. A dash for an incomplete target means that not
 all three seeds reached it within 43,000 updates. The next four FP32 rows check
-the original terminal models. The last four rows isolate the original-to-final
-CPU systems improvement with fixed work and exact output parity.
+the original terminal models, followed by four original-to-final CPU systems
+rows with fixed work and exact output parity. The final six rows compare batch
+64/256/512 training costs in **microseconds per image**, with five timing
+repetitions per configuration; they do not measure retrieval quality.
 
 P@10 is the fraction of the ten returned images sharing the query category.
 Δ is its signed change against the same encoder's FP32 store, in percentage
@@ -150,6 +166,19 @@ three independent processes after all training timings are complete; its
 monitoring durations are not query-performance benchmarks. All six 8,600-update
 snapshots must reproduce the earlier terminal parameter arrays and retrieval
 precision exactly.
+
+The batch-size diagnostic uses the same model, rates and final native binary.
+Every configuration starts at seed 8, warms up on the same first 2,048 images,
+then times the same next 32,768 images in the same order. That is 512, 128 or 64
+measured updates at batch 64, 256 or 512. Five repetitions use isolated sequential
+processes, rotated/reversed batch order and alternating optimizer order. They
+are timing repetitions at one seed, rather than independent quality trials.
+Total time includes data/Tensor preparation, loss reads, forward, backward and
+all optimizer work; setup, warmup and output hashing are outside it. Raw records
+also separate optimizer time from the remaining training-loop time. Repeated
+outputs must match within each configuration; different batches and optimizers
+have different parameter trajectories. Larger-batch throughput alone does not
+establish faster training to the same retrieval target.
 
 The systems rows report the median of five alternating sequential process pairs,
 each measuring 128 complete updates at seed 8/batch 64. Parenthetical speedup is
@@ -228,6 +257,9 @@ python experiments/run_report.py --study timed --checkpoint best --checkpoint-ch
 # Direct retrieval learning curves and fixed-target crossing summaries.
 python experiments/time_to_quality.py --output-dir results/reproduction/time_to_quality
 
+# Fixed-image per-image training costs at batches 64/256/512.
+python experiments/benchmark_batch.py --output-dir results/reproduction/batch_cost
+
 # Optional fixed-gradient optimizer profile.
 python experiments/profile_optimizer.py --output results/profile.json
 
@@ -251,6 +283,7 @@ pass `--reference-study results/reproduction/epochs` to `time_to_quality.py`.
 The original-workspace trajectory can be attached to the same evidence/table
 with `python tools/build_report.py --time-to-quality-run results/time_to_quality_20261101/run.json`;
 shared sources, data, starts, native binary and reference hashes must match.
+The batch diagnostic similarly uses `python tools/build_report.py --batch-run results/batch_cost_20261101/run.json`.
 The maintained tree contains the framework/kernels, six app modules,
-five experiment modules, two tools, relevant tests and this single
+six experiment modules, two tools, relevant tests and this single
 report dataset/table. Earlier exploratory work remains in Git history.

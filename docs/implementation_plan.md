@@ -62,3 +62,9 @@ their own gallery/query embeddings and all five stores. Paired absolute category
 precision and within-model compression changes are reported separately; a
 favorable compression interaction does not guarantee better absolute retrieval
 or end-to-end speed. The earlier MNIST/synthetic records remain component checks.
+
+The [depth extension](depth_study_design.md) adds two hidden layers while keeping
+Fashion data, width, embedding dimension and retrieval images fixed. It retunes
+both optimizers using the same candidate budget, then repeats the joint study.
+Greater Muon coverage is measured alongside its added CPU update cost; benefits
+are not assumed. All historical shallow outputs remain separate records.

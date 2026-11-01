@@ -1,0 +1,53 @@
+{
+  "date": "2026-11-01",
+  "architecture": [
+    784,
+    128,
+    128,
+    128,
+    64,
+    10
+  ],
+  "extra_hidden_layers": 2,
+  "total_parameters": 142410,
+  "muon_parameters": 40960,
+  "muon_parameter_fraction": 0.28762025138684083,
+  "candidates": {
+    "low": {
+      "adamw_lr": 0.001,
+      "muon_lr": 0.007
+    },
+    "medium": {
+      "adamw_lr": 0.003,
+      "muon_lr": 0.02
+    },
+    "high": {
+      "adamw_lr": 0.01,
+      "muon_lr": 0.06
+    }
+  },
+  "tuning_seed": 7,
+  "repeat_seeds": [
+    8,
+    9,
+    10
+  ],
+  "epochs": 10,
+  "batch_size": 64,
+  "train_rows": 55000,
+  "validation_rows": 5000,
+  "split_seed": 17,
+  "weight_decay": 0.01,
+  "source_sha256": {
+    "apps/models.py": "758c68183c1318551568ac8e76421eb586c6638a76dbed49397dd5ec9a5067e6",
+    "apps/encoder_checkpoint.py": "a3ce33c0c4db397e7b63f15514a8aa2ebe8613f321220da58f5ab3418588bf57",
+    "apps/train_baseline.py": "87e5f2f1d913620b58e4911efeb3cd748575b5e1470aa6772919a820b24d45a1",
+    "python/needle/optim.py": "c677ba6a09c69c09c445acbf40a14e38026624bedbcd51bb9fcf2d58f6754651",
+    "experiments/run_depth_study.py": "80e6fd12b201ffee130ce91102a19ef69162076c6b146b53f30b9e3c8a41a224",
+    "experiments/run_joint_retrieval.py": "7e59f84f4cd29a49060da40f7f3cc7b004a2f9a7aac0d163efccd76c53a2fd37",
+    "experiments/run_lr_dataset_study.py": "fa60d9d3f3a5fa93a53924e7b0ab26fb0dfd49d9f4a8b70daf11c46800a67d98",
+    "experiments/summarize_lr_dataset_study.py": "c51a97eed13cad13bb9b145495f42f6ce82301e739cd7f958f99f0d798a2cc8e"
+  },
+  "selection": "minimum_validation_loss_then_candidate_name",
+  "shallow_reference_commit": "74c161a67ddae08847478d04f8fb4e6c988999b5"
+}

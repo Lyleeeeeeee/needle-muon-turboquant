@@ -1,0 +1,69 @@
+{
+  "selection": "minimum_validation_loss_then_candidate_name",
+  "tuning_seed": 7,
+  "test_set_used": false,
+  "all_candidates": {
+    "adamw": [
+      {
+        "candidate": "low",
+        "record": "reports/depth_study/tune_adamw_low_seed7.json",
+        "record_sha256": "4799974b4833ce9ac79d308b4f172ab2d81cf7e795c5242db3ede285fc967ff6",
+        "best_validation_loss": 0.2894602363586426,
+        "best_validation_accuracy": 0.8956
+      },
+      {
+        "candidate": "medium",
+        "record": "reports/depth_study/tune_adamw_medium_seed7.json",
+        "record_sha256": "56a3947af7de4fdf95b024e7bf5c16b10b2258826f9dda11bfdc8434b7d77e42",
+        "best_validation_loss": 0.2985885048389435,
+        "best_validation_accuracy": 0.8896
+      },
+      {
+        "candidate": "high",
+        "record": "reports/depth_study/tune_adamw_high_seed7.json",
+        "record_sha256": "ba802ad60cfd3435cf3fbf8c4ae5a15948599e360a20da2fade97918dec0198e",
+        "best_validation_loss": 0.3929959877252579,
+        "best_validation_accuracy": 0.8648
+      }
+    ],
+    "muon": [
+      {
+        "candidate": "low",
+        "record": "reports/depth_study/tune_muon_low_seed7.json",
+        "record_sha256": "0c86c80283669768997ac238d9aeddb4aa9ed933b95b6191fc00a1e3092a1f49",
+        "best_validation_loss": 0.3090531823158264,
+        "best_validation_accuracy": 0.8898
+      },
+      {
+        "candidate": "medium",
+        "record": "reports/depth_study/tune_muon_medium_seed7.json",
+        "record_sha256": "6c6864086ee9499c7762d1660c3a4c1f03cf4500e3da20baf380e9cd97b7fde6",
+        "best_validation_loss": 0.3503029204368591,
+        "best_validation_accuracy": 0.8794
+      },
+      {
+        "candidate": "high",
+        "record": "reports/depth_study/tune_muon_high_seed7.json",
+        "record_sha256": "1e36962782cc9e9f3d6bef718edf1d43359e95461f16a5969d2b80a2046df99e",
+        "best_validation_loss": 0.598771901512146,
+        "best_validation_accuracy": 0.8012
+      }
+    ]
+  },
+  "selected": {
+    "adamw": {
+      "candidate": "low",
+      "record": "reports/depth_study/tune_adamw_low_seed7.json",
+      "record_sha256": "4799974b4833ce9ac79d308b4f172ab2d81cf7e795c5242db3ede285fc967ff6",
+      "best_validation_loss": 0.2894602363586426,
+      "best_validation_accuracy": 0.8956
+    },
+    "muon": {
+      "candidate": "low",
+      "record": "reports/depth_study/tune_muon_low_seed7.json",
+      "record_sha256": "0c86c80283669768997ac238d9aeddb4aa9ed933b95b6191fc00a1e3092a1f49",
+      "best_validation_loss": 0.3090531823158264,
+      "best_validation_accuracy": 0.8898
+    }
+  }
+}

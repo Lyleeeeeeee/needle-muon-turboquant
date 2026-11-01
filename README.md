@@ -163,6 +163,27 @@ Only gallery vectors are compressed; queries remain float32.
 Local models from the learning-rate study are required. See the report for
 artifact checks and fresh-reproduction instructions.
 
+## Deeper encoder comparison
+
+`train_baseline.py --extra-hidden-layers 2` inserts two 128-to-128 Linear+ReLU
+layers, giving 784-128-128-128-64-10 while keeping 64D embeddings. Muon covers all
+three hidden weight matrices: 40,960/142,410 parameters (28.76%), versus 7.49%
+in the default shallow model. Input/classifier weights and all biases retain
+auxiliary AdamW. The default model and old version1 checkpoints stay compatible;
+version2 records and restores every added layer.
+
+```bash
+python experiments/run_depth_study.py
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 python experiments/summarize_depth_study.py
+```
+
+The [predefined depth study](docs/depth_study_design.md) repeats the same
+three-candidate tuning budget and three repeat seeds on Fashion-MNIST, followed
+by identical gallery/query images and quantizers. The [depth report](reports/depth_study/summary.md)
+compares both encoders and both architectures, with training cost and compression
+loss separate from absolute retrieval quality. This comparison changes depth,
+parameter count and compute; it cannot isolate Muon coverage as a causal effect.
+
 ## Verification and scope
 
 Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.

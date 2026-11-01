@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--feature-dim", type=int, default=64)
+    parser.add_argument('--extra-hidden-layers', type=int, default=0)
     parser.add_argument("--lr", type=float, default=.003)
     parser.add_argument("--optimizer", choices=['adamw', 'muon'], default='adamw')
     parser.add_argument("--muon-lr", type=float, default=.02)
@@ -63,6 +64,8 @@ def main():
     if min(args.train_limit, args.eval_limit, args.epochs, args.batch_size,
            args.hidden_dim, args.feature_dim) <= 0:
         parser.error("Sample counts, epochs, batch size and dimensions must be positive.")
+    if args.extra_hidden_layers < 0:
+        parser.error('Extra hidden layer count must be nonnegative')
     np.random.seed(args.seed)
     rng = np.random.default_rng(args.seed)
     if args.device == "numpy":
@@ -87,12 +90,14 @@ def main():
         parser.error(str(error))
     x_train, y_train = train.X[train_indices], train.y[train_indices]
     x_valid, y_valid = valid.X[valid_indices], valid.y[valid_indices]
-    model = SmallEncoder(hidden_dim=args.hidden_dim, feature_dim=args.feature_dim, device=device)
+    model = SmallEncoder(hidden_dim=args.hidden_dim, feature_dim=args.feature_dim, device=device,
+                         extra_hidden_layers=args.extra_hidden_layers)
     criterion = nn.SoftmaxLoss()
     params = model.parameters()
     if args.optimizer == 'muon':
-        matrices = [model.hidden.weight]
-        auxiliary = [p for p in params if p is not model.hidden.weight]
+        matrices = model.muon_parameters()
+        matrix_ids = {id(p) for p in matrices}
+        auxiliary = [p for p in params if id(p) not in matrix_ids]
         optimizer = optim.MuonWithAuxAdamW(matrices, auxiliary, lr=args.muon_lr,
                                          aux_lr=args.lr, weight_decay=args.weight_decay)
     else:
@@ -133,6 +138,11 @@ def main():
               "validation_indices_sha256": hashlib.sha256(valid_indices.astype('int64').tobytes()).hexdigest(),
               "initial_parameter_sha256": initial_hash.hexdigest(),
               "muon_parameter_shapes": [list(p.shape) for p in matrices],
+              "extra_hidden_layers": args.extra_hidden_layers,
+              "total_parameter_count": int(sum(np.prod(p.shape) for p in params)),
+              "muon_parameter_count": int(sum(np.prod(p.shape) for p in matrices)),
+              "muon_parameter_fraction": float(sum(np.prod(p.shape) for p in matrices) /
+                                               sum(np.prod(p.shape) for p in params)),
               "muon_learning_rate": args.muon_lr if matrices else None,
               "weight_decay": args.weight_decay,
               "seed": args.seed, "train_samples": len(x_train), "eval_samples": len(x_valid),

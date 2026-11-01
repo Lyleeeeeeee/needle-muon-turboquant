@@ -1,0 +1,92 @@
+[
+  {
+    "encoder": "muon",
+    "training_seed": 8,
+    "checkpoint_sha256": "3b00cc7cfa33c0daf2ef9c11cdee3f523055880bf896fd5b89c66f8725fa52be",
+    "validation_reproduced": {
+      "loss": 0.2978389756202698,
+      "accuracy": 0.8914,
+      "samples": 5000
+    },
+    "official_test": {
+      "loss": 0.34606904830932617,
+      "accuracy": 0.8794,
+      "samples": 10000
+    }
+  },
+  {
+    "encoder": "adamw",
+    "training_seed": 8,
+    "checkpoint_sha256": "c5c1339147fc1c34bf0a473e19501819c5ec6e6e8795bf8c02b5c7fdad32168f",
+    "validation_reproduced": {
+      "loss": 0.29370028257369996,
+      "accuracy": 0.8878,
+      "samples": 5000
+    },
+    "official_test": {
+      "loss": 0.33820259847640993,
+      "accuracy": 0.8796,
+      "samples": 10000
+    }
+  },
+  {
+    "encoder": "adamw",
+    "training_seed": 9,
+    "checkpoint_sha256": "5d43f863ef0160c558411bc13731e05dba15e3ad68dfec1ce6c2f53adb9ffcd6",
+    "validation_reproduced": {
+      "loss": 0.2913628967285156,
+      "accuracy": 0.8964,
+      "samples": 5000
+    },
+    "official_test": {
+      "loss": 0.330217823433876,
+      "accuracy": 0.882,
+      "samples": 10000
+    }
+  },
+  {
+    "encoder": "muon",
+    "training_seed": 9,
+    "checkpoint_sha256": "c1783c40a3d4a3bcf14a1ebf779653967cee423c806a0f1e10076109f825173b",
+    "validation_reproduced": {
+      "loss": 0.2909193865776062,
+      "accuracy": 0.893,
+      "samples": 5000
+    },
+    "official_test": {
+      "loss": 0.3358064697980881,
+      "accuracy": 0.8811,
+      "samples": 10000
+    }
+  },
+  {
+    "encoder": "muon",
+    "training_seed": 10,
+    "checkpoint_sha256": "0521f492e925d8f794a64352c97e0905ca29eba85eb5c306c6a38fffedbe26e0",
+    "validation_reproduced": {
+      "loss": 0.3066029132843018,
+      "accuracy": 0.8852,
+      "samples": 5000
+    },
+    "official_test": {
+      "loss": 0.3560613118171692,
+      "accuracy": 0.8756,
+      "samples": 10000
+    }
+  },
+  {
+    "encoder": "adamw",
+    "training_seed": 10,
+    "checkpoint_sha256": "96c3953aeada9783b7ce18d2de1717d8f70c1939e2891ade8f7ab6a2e67f44ea",
+    "validation_reproduced": {
+      "loss": 0.280405241394043,
+      "accuracy": 0.8974,
+      "samples": 5000
+    },
+    "official_test": {
+      "loss": 0.3149149121761322,
+      "accuracy": 0.8879,
+      "samples": 10000
+    }
+  }
+]

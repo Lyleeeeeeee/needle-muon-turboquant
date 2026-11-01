@@ -60,19 +60,19 @@ def aggregate_quality(rows):
     return result
 
 
-def main():
-    from run_joint_retrieval import digest, save_json, source_hashes
+def validate_and_summarize(report_dir=REPORTS):
+    from run_joint_retrieval import digest
 
-    protocol_path = REPORTS / 'protocol.json'
+    protocol_path = report_dir / 'protocol.json'
     protocol = json.loads(protocol_path.read_text())
-    assert source_hashes() == protocol['source_sha256']
+    assert {p: digest(ROOT / p) for p in protocol['source_sha256']} == protocol['source_sha256']
     metadata = {}
     common_ids = None
     for model in protocol['models']:
         encoder, seed = model['encoder'], model['training_seed']
         assert digest(ROOT / model['checkpoint']) == model['checkpoint_sha256']
         assert digest(ROOT / model['training_record']) == model['training_record_sha256']
-        path = REPORTS / f'features_{encoder}_seed{seed}.json'
+        path = report_dir / f'features_{encoder}_seed{seed}.json'
         record = json.loads(path.read_text())
         assert record['checkpoint_sha256'] == model['checkpoint_sha256']
         assert record['feature_archive_sha256'] == digest(record['feature_archive'])
@@ -90,7 +90,7 @@ def main():
     for seed in SEEDS:
         for encoder in ('adamw', 'muon'):
             for rotation in (7, 8, 9):
-                path = REPORTS / f'{encoder}_seed{seed}_rotation{rotation}.json'
+                path = report_dir / f'{encoder}_seed{seed}_rotation{rotation}.json'
                 raw = json.loads(path.read_text())
                 provenance = raw['provenance']
                 features = metadata[encoder, seed]
@@ -128,6 +128,13 @@ def main():
     for method in protocol['methods']:
         sizes = {r['stored_bytes'] for r in rows if r['method'] == method}
         assert len(sizes) == 1
+    return summary
+
+
+def main():
+    from run_joint_retrieval import save_json
+
+    summary = validate_and_summarize()
     save_json(REPORTS / 'summary.json', summary)
     draw_plot(summary)
     write_report(summary)
@@ -137,10 +144,10 @@ def main():
                         for m, v in summary['encoders'][encoder].items()}, flush=True)
 
 
-def draw_plot(summary):
+def draw_plot(summary, report_dir=REPORTS, artifact_dir=ARTIFACTS):
     import numpy as np
-    os.environ.setdefault('MPLCONFIGDIR', str(ARTIFACTS / 'mplcache'))
-    os.environ.setdefault('XDG_CACHE_HOME', str(ARTIFACTS / 'cache'))
+    os.environ.setdefault('MPLCONFIGDIR', str(artifact_dir / 'mplcache'))
+    os.environ.setdefault('XDG_CACHE_HOME', str(artifact_dir / 'cache'))
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -169,8 +176,8 @@ def draw_plot(summary):
     axes[1, 1].set_ylim(bottom=0)
     axes[0, 0].legend(fontsize=8, loc='best')
     fig.suptitle('Fashion-MNIST: paired training seeds 8/9/10; rotation means; error bars = sample SD')
-    fig.savefig(REPORTS / 'comparison.svg', metadata={'Date': '2026-11-01'})
-    fig.savefig(ARTIFACTS / 'comparison.png', dpi=150)
+    fig.savefig(report_dir / 'comparison.svg', metadata={'Date': '2026-11-01'})
+    fig.savefig(artifact_dir / 'comparison.png', dpi=150)
     plt.close(fig)
 
 

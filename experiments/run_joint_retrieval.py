@@ -34,8 +34,8 @@ def freeze_json(path, value):
         save_json(path, value)
 
 
-def source_hashes():
-    return {p: digest(ROOT / p) for p in SOURCES}
+def source_hashes(extra_sources=()):
+    return {p: digest(ROOT / p) for p in dict.fromkeys([*SOURCES, *extra_sources])}
 
 
 def model_catalog():
@@ -70,7 +70,7 @@ def run_logged(command, path):
                        stdout=log, stderr=subprocess.STDOUT, check=True)
 
 
-def export_and_validate(catalog, protocol):
+def export_and_validate(catalog, protocol, report_dir=REPORTS, artifact_dir=ARTIFACTS):
     import numpy as np
     sys.path[:0] = [str(ROOT / 'python'), str(ROOT / 'apps')]
     import needle as ndl
@@ -86,15 +86,15 @@ def export_and_validate(catalog, protocol):
     exports = {}
     for item in catalog:
         encoder, seed = item['encoder'], item['training_seed']
-        output = ARTIFACTS / f'{encoder}_seed{seed}_features.npz'
-        report_path = REPORTS / f'features_{encoder}_seed{seed}.json'
+        output = artifact_dir / f'{encoder}_seed{seed}_features.npz'
+        report_path = report_dir / f'features_{encoder}_seed{seed}.json'
         if not report_path.exists():
             print(f'EXPORT {encoder} seed{seed}', flush=True)
             run_logged([sys.executable, str(ROOT / 'apps/export_features.py'),
                         '--checkpoint', str(ROOT / item['checkpoint']), '--dataset', 'Fashion-MNIST',
                         '--validation-size', '5000', '--split-seed', '17', '--gallery-size', '55000',
                         '--queries', '1000', '--seed', '7', '--output', str(output)],
-                       ARTIFACTS / f'export_{encoder}_seed{seed}.log')
+                       artifact_dir / f'export_{encoder}_seed{seed}.log')
             metadata = json.loads(output.with_suffix('.json').read_text())
         else:
             metadata = json.loads(report_path.read_text())
@@ -133,37 +133,40 @@ def export_and_validate(catalog, protocol):
     return exports
 
 
-def main():
-    REPORTS.mkdir(parents=True, exist_ok=True)
-    ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    catalog = model_catalog()
+def run_retrieval_study(catalog, report_dir=REPORTS, artifact_dir=ARTIFACTS,
+                        training_source_commit='b397f002098f57e21aa8ad3fb5909546744eeadb',
+                        extra_sources=(), architecture=None):
+    report_dir.mkdir(parents=True, exist_ok=True)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
     train_manifest = json.loads((ROOT / 'reports/lr_dataset_study/fashion_training_data.json').read_text())
     test_manifest = json.loads((ROOT / 'reports/lr_dataset_study/fashion_test_data.json').read_text())['files']
     data_hashes = {name: row['sha256'] for name, row in dict(train_manifest, **test_manifest).items()}
     for name, expected in data_hashes.items():
         assert digest(ROOT / 'data/fashion-mnist' / name) == expected
-    protocol = {'date': '2026-11-01', 'training_source_commit': 'b397f002098f57e21aa8ad3fb5909546744eeadb',
+    protocol = {'date': '2026-11-01', 'training_source_commit': training_source_commit,
                 'dataset': 'Fashion-MNIST', 'models': catalog, 'training_seeds': list(SEEDS),
                 'gallery_rows': 55000, 'query_rows': 1000, 'dimensions': 64, 'k': 10,
                 'validation_size_excluded': 5000, 'split_seed': 17, 'image_selection_seed': 7,
                 'rotation_seeds': [7, 8, 9], 'metric': 'cosine', 'block_size': 256,
                 'warmups': 1, 'query_timing_repeats': 3, 'methods': METHODS,
-                'primary_metric': 'same_label_precision_at10', 'source_sha256': source_hashes(),
+                'primary_metric': 'same_label_precision_at10', 'source_sha256': source_hashes(extra_sources),
                 'data_files_sha256': data_hashes,
                 'selection_rule': 'use_all_previously_fixed_models_no_new_selection'}
-    freeze_json(REPORTS / 'protocol.json', protocol)
-    exports = export_and_validate(catalog, protocol)
+    if architecture is not None:
+        protocol['architecture'] = architecture
+    freeze_json(report_dir / 'protocol.json', protocol)
+    exports = export_and_validate(catalog, protocol, report_dir, artifact_dir)
     print('ALL SIX OWN-MODEL EMBEDDINGS AND COMMON IMAGE IDS VERIFIED', flush=True)
     catalog_by_key = {(r['encoder'], r['training_seed']): r for r in catalog}
     for index, seed in enumerate(SEEDS):
         for encoder in (('adamw', 'muon') if index % 2 == 0 else ('muon', 'adamw')):
             metadata = exports[encoder, seed]
             for rotation in ((9, 8, 7) if seed == 9 else (7, 8, 9)):
-                if source_hashes() != protocol['source_sha256']:
+                if source_hashes(extra_sources) != protocol['source_sha256']:
                     raise ValueError('Measured source changed during the study')
                 methods = METHODS if rotation == 7 else ['turbo_2', 'turbo_4']
                 run_id = f'{encoder}_seed{seed}_rotation{rotation}'
-                output = REPORTS / f'{run_id}.json'
+                output = report_dir / f'{run_id}.json'
                 provenance = {'encoder': encoder, 'training_seed': seed, 'rotation_seed': rotation,
                               'checkpoint_sha256': catalog_by_key[encoder, seed]['checkpoint_sha256'],
                               'feature_archive_sha256': metadata['feature_archive_sha256'],
@@ -175,12 +178,12 @@ def main():
                     assert report['provenance'] == provenance
                 else:
                     print(f'START {run_id} {methods}', flush=True)
-                    raw = ARTIFACTS / f'{run_id}.json'
+                    raw = artifact_dir / f'{run_id}.json'
                     run_logged([sys.executable, str(ROOT / 'apps/benchmark_quantization.py'),
                                 '--features', metadata['feature_archive'], '--metric', 'cosine',
                                 '--device', 'cpu', '--seed', str(rotation), '--k', '10',
                                 '--block-size', '256', '--repeats', '3', '--methods', *methods,
-                                '--output', str(raw)], ARTIFACTS / f'{run_id}.log')
+                                '--output', str(raw)], artifact_dir / f'{run_id}.log')
                     report = json.loads(raw.read_text())
                     report['provenance'] = provenance
                     save_json(output, report)
@@ -197,6 +200,10 @@ def main():
                 print('DONE ' + run_id + ' ' + json.dumps({r['method']: r['label_precision_at_k']
                                                          for r in report['results']}), flush=True)
     print('COMPLETE:18 comparisons,54 isolated method workers; no retraining.', flush=True)
+
+
+def main():
+    run_retrieval_study(model_catalog())
 
 
 if __name__ == '__main__':

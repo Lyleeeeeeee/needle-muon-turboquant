@@ -19,6 +19,8 @@ from benchmark_batch import summarize_batches
 from time_to_quality import TARGETS, THREADS, checkpoint_schedule, first_crossing, summarize_trajectories
 from tune_batch512 import choose_rates, final_schedule, learning_rate_grid, summarize_runs
 from evaluate_tuned import make_protocol, select_terminal_snapshots
+from cifar_pilot import choose_candidate, final_epochs, model_config, rate_grid
+from compare_galleries import METHODS as GALLERY_METHODS, summarize_galleries
 
 STORES = {'fp32': 'FP32', 'uniform_2': 'Uniform 2-bit', 'uniform_4': 'Uniform 4-bit',
           'turbo_2': 'TurboQuant 2-bit', 'turbo_4': 'TurboQuant 4-bit'}
@@ -54,22 +56,22 @@ def training_by_seed(records, timed=False):
     return indexed
 
 
-def quality_rows(study, quality, costs):
+def quality_rows(study, quality, costs, stores=None, fp32_bytes=14080000):
     result = []
     for optimizer in OPTIMIZERS:
-        for method in STORES:
+        for method in (STORES if stores is None else stores):
             if method not in quality['encoders'][optimizer]:
                 continue
             metric = quality['encoders'][optimizer][method]
             if len(set(metric['stored_bytes']['values'])) != 1:
                 raise ValueError('Persistent format bytes changed across training seeds')
             byte_count = metric['stored_bytes']['mean']
-            result.append(dict(study=study, optimizer=OPTIMIZERS[optimizer], store=STORES[method],
+            result.append(dict(study=study, optimizer=OPTIMIZERS[optimizer], store=(STORES if stores is None else stores)[method],
                                precision_mean=metric['label_precision_at10']['mean'],
                                precision_sd=metric['label_precision_at10']['sample_std'],
                                recall_mean=metric['neighbor_recall_at10']['mean'],
                                recall_sd=metric['neighbor_recall_at10']['sample_std'],
-                               gallery_bytes=byte_count, compression=14080000 / byte_count,
+                               gallery_bytes=byte_count, compression=fp32_bytes / byte_count,
                                training_cost=costs[optimizer]['mean'],
                                training_sd=costs[optimizer]['sample_std'],
                                training_unit='s', speedup=None,
@@ -464,6 +466,174 @@ def collect_integrated_rows(run, parent):
     return rows
 
 
+def validate_gallery_reports(reports, previous, features, methods, seeds, gallery_rows):
+    indexed = {(r['encoder'], r['training_seed']): r for r in reports}
+    if len(indexed) != len(reports) or set(indexed) != set(features):
+        raise ValueError('Missing unique own-model gallery report')
+    rows = []
+    for key, report in indexed.items():
+        p, f = report['protocol'], features[key]
+        expected = dict(gallery_shape=[gallery_rows, 64], query_shape=[1000, 64], methods=methods,
+                        k=10, block_size=256, repeats=3, rotations=[7, 8, 9], metric='cosine',
+                        backend=previous['protocol']['backend'], feature_archive_sha256=f['feature_archive_sha256'])
+        if any(p.get(k) != v for k, v in expected.items()):
+            raise ValueError('Gallery feature identity, format or query protocol differs')
+        for path, sha in previous['protocol']['source_sha256'].items():
+            if p['source_sha256'].get(path) != sha:
+                raise ValueError('Shared gallery source differs: ' + path)
+        for path in ('experiments/compare_galleries.py', 'experiments/uniform_compact.py'):
+            if p['source_sha256'].get(path) != hashlib.sha256((ROOT / path).read_bytes()).hexdigest():
+                raise ValueError('Measured gallery comparison source changed: ' + path)
+        validate_retrieval(report['results'])
+        for row in report['results']:
+            if row['runner_provenance'] != dict(protocol_sha256=json_hash(p), feature_archive_sha256=f['feature_archive_sha256']):
+                raise ValueError('Gallery worker feature provenance differs')
+            method = row['method']
+            if method == 'fp32':
+                allowed = {gallery_rows * 64 * 4}
+                if abs(row['label_precision_at_k'] - f['precision']) > 1e-12 or row['recall_at_k'] != 1:
+                    raise ValueError('FP32 retrieval differs from its own model')
+            else:
+                bits = int(method.rsplit('_', 1)[1])
+                codes = gallery_rows * 64 * bits // 8
+                if method.startswith('uniform'): allowed = {codes + gallery_rows * 8}
+                elif method.startswith('compact'): allowed = {codes + gallery_rows * 8 + 1, codes + gallery_rows * 4 + 5}
+                elif method.startswith('symmetric'): allowed = {codes + gallery_rows * 4 + 1}
+                else: allowed = {codes + gallery_rows * 4 + 64*64*4 + (1 << bits)*4}
+            if row['stored_bytes'] not in allowed or row['compression_ratio_vs_fp32'] != gallery_rows*64*4/row['stored_bytes']:
+                raise ValueError('Gallery storage excludes required metadata')
+            rows.append(dict(row, encoder=key[0], training_seed=key[1]))
+    summary = summarize_galleries(rows, seeds)
+    return rows, summary
+
+
+def gallery_table_rows(title, quality, selected, stores, seeds, gallery_rows):
+    costs = {m: distribution([selected[m, s]['training_seconds'] for s in seeds]) for m in OPTIMIZERS}
+    rows = quality_rows(title, quality, costs, stores, gallery_rows*64*4)
+    for row in rows:
+        method = next(m for m, label in OPTIMIZERS.items() if label == row['optimizer'])
+        store = next(q for q, label in stores.items() if label == row['store'])
+        delta = quality['encoders'][method][store]['precision_change_vs_own_fp32']
+        updates = distribution([selected[method, s]['steps'] for s in seeds])
+        states = {selected[method, s]['optimizer_numeric_state_bytes'] for s in seeds}
+        if len(states) != 1:
+            raise ValueError('Optimizer state changed across seed replicas')
+        row.update(precision_change_mean=delta['mean'], precision_change_sd=delta['sample_std'],
+                   updates_mean=updates['mean'], updates_sd=updates['sample_std'], optimizer_state_bytes=states.pop())
+        if len(seeds) == 1:
+            for key in ('precision_sd', 'recall_sd', 'training_sd', 'query_sd', 'precision_change_sd'):
+                row[key] = None
+    return rows
+
+
+def collect_compact_rows(bundle, previous):
+    if bundle['parent_integrated_sha256'] != json_hash(previous):
+        raise ValueError('Compact metadata follow-up uses a different parent')
+    features = {(f['encoder'], f['training_seed']): dict(f, precision=next(
+        r['label_precision_at_k'] for r in previous['retrieval_rows']
+        if (r['encoder'], r['training_seed'], r['method']) == (f['encoder'], f['training_seed'], 'fp32')))
+        for f in previous['feature_metadata']}
+    methods = ['fp32', 'uniform_2', 'uniform_4', 'compact_2', 'compact_4']
+    raw, quality = validate_gallery_reports(bundle['reports'], previous, features, methods, [8, 9, 10], 55000)
+    if quality != bundle['quality_summary']:
+        raise ValueError('Compact uniform summary differs from raw measurements')
+    for encoder, seed in features:
+        for bits in (2, 4):
+            affine, compact = [next(r for r in raw if (r['encoder'], r['training_seed'], r['method']) ==
+                                        (encoder, seed, prefix+str(bits))) for prefix in ('uniform_', 'compact_')]
+            if (compact['stored_bytes'] != 55000*64*bits//8 + 55000*4 + 5
+                    or any(compact[k] != affine[k] for k in ('label_precision_at_k', 'recall_at_k'))
+                    or ('neighbor_indices_sha256' in affine and compact.get('neighbor_indices_sha256') != affine['neighbor_indices_sha256'])):
+                raise ValueError('Compact minimum storage changed decoded retrieval or omitted metadata')
+            old = next(r for r in previous['retrieval_rows'] if
+                       (r['encoder'], r['training_seed'], r['method']) == (encoder, seed, 'uniform_'+str(bits)))
+            if any(old[k] != affine[k] for k in ('label_precision_at_k', 'recall_at_k')):
+                raise ValueError('Fresh uniform reference differs from the parent model')
+    selected = {(r['optimizer'], r['seed']): r for r in previous['selected_snapshots']}
+    return gallery_table_rows('Fashion / shared-min follow-up / same terminal models', quality, selected,
+                              {'compact_2': 'Uniform shared-min 2-bit', 'compact_4': 'Uniform shared-min 4-bit'},
+                              [8, 9, 10], 55000)
+
+
+def collect_cifar_rows(bundle, previous):
+    pilot = bundle['pilot'];p = pilot['protocol']
+    expected = dict(dataset='CIFAR-100', study='bounded_cifar_pilot', smoke=False, model=model_config(),
+                    train_rows=10000, validation_rows=2000, train_per_class=100, validation_per_class=20,
+                    query_per_class=10, batch_size=256, split_seed=17, training_seed=7, final_seeds=[8],
+                    official_test_used=False, tuning_epochs=5, rate_grid=rate_grid(), weight_decay=.01, k=10, metric='cosine')
+    if any(p.get(k) != v for k, v in expected.items()) or p['backend'] != previous['protocol']['backend']:
+        raise ValueError('CIFAR pilot protocol or scope differs')
+    for path, sha in previous['protocol']['source_sha256'].items():
+        if p['source_sha256'].get(path) != sha:
+            raise ValueError('CIFAR shared framework source differs: ' + path)
+    for path in ('apps/cifar_model.py', 'experiments/cifar_data.py', 'experiments/cifar_pilot.py'):
+        if p['source_sha256'].get(path) != hashlib.sha256((ROOT / path).read_bytes()).hexdigest():
+            raise ValueError('Measured CIFAR source changed: ' + path)
+    cost = max(r['median_seconds'] for r in pilot['probe'].values())
+    if p['final_epochs'] != final_epochs(cost):
+        raise ValueError('Pilot training budget was changed after the cost probe')
+    tuning, final = pilot['tuning'], pilot['final']
+    configs = {c['id']: (m, c) for m in p['rate_grid'] for c in p['rate_grid'][m]}
+    if len(tuning) != 6 or {r['candidate']['id'] for r in tuning} != set(configs):
+        raise ValueError('CIFAR tuning candidates were omitted or duplicated')
+    if len(final) != 2 or {(r['optimizer'], r['seed']) for r in final} != {(m, 8) for m in OPTIMIZERS}:
+        raise ValueError('Expected one complete paired final CIFAR pilot seed')
+    for phase, records in (('tuning', tuning), ('final', final)):
+        epochs = 5 if phase == 'tuning' else p['final_epochs']
+        planned = [40*e for e in ([0, 1, 3, 5] if phase == 'tuning' else [0, 1, 5, 10, 15, 20]) if e <= epochs]
+        for r in records:
+            method = r['optimizer']
+            raw = {k: v for k, v in r.items() if k not in ('curve', 'training_record_sha256', 'feature_archive',
+                         'feature_archive_sha256', 'gallery_ids_sha256', 'query_ids_sha256')}
+            snaps = r['snapshots'];curve = r['curve']
+            if (r['training_record_sha256'] != json_hash(raw) or r['protocol_sha256'] != json_hash(p)
+                    or r['candidate'] != configs[r['candidate']['id']][1]
+                    or method != configs[r['candidate']['id']][0]
+                    or r['seed'] != (7 if phase == 'tuning' else 8)
+                    or r['total_parameter_count'] != 54788 or r['muon_eligible_parameter_count'] != 34816
+                    or r['muon_parameter_count'] != (34816 if method == 'muon' else 0)
+                    or r['optimizer_numeric_state_bytes'] != (438304 if method == 'adamw' else 299040)
+                    or r['train_ids_sha256'] != p['train_ids_sha256'] or r['validation_ids_sha256'] != p['validation_ids_sha256']
+                    or len(curve) != len(snaps) or not snaps
+                    or [s['steps'] for s in snaps] != planned[:len(snaps)]):
+                raise ValueError('CIFAR model, rate, checkpoint or raw training provenance differs')
+            if r['status'] == 'complete':
+                if (len(snaps) != len(planned) or r['steps'] != epochs*40 or r['samples_seen'] != epochs*10000
+                        or r['training_seconds'] != snaps[-1]['training_seconds']):
+                    raise ValueError('CIFAR completed training budget or clock differs')
+            elif r['status'] != 'diverged':
+                raise ValueError('Unknown CIFAR training outcome')
+            for snap, point in zip(snaps, curve):
+                if (any(point.get(k) != v for k, v in snap.items())
+                        or not math.isfinite(point['precision']) or not 0 <= point['precision'] <= 1
+                        or abs(point['precision'] - point['same_category_matches']/10000) > 1e-12
+                        or snap['samples_seen'] != snap['steps']//40*10000):
+                    raise ValueError('CIFAR retrieval curve differs from saved training observations')
+    chosen = {m: choose_candidate([r for r in tuning if r['optimizer'] == m]) for m in OPTIMIZERS}
+    selection = dict(selected=chosen, tuning_sha256=hashlib.sha256(json.dumps(tuning, sort_keys=True).encode()).hexdigest())
+    if pilot['selection'] != selection or pilot['selection_sha256'] != json_hash(selection):
+        raise ValueError('CIFAR rates were not locked from the full validation search')
+    for r in final:
+        if r['status'] != 'complete' or r['candidate'] != chosen[r['optimizer']]['candidate']:
+            raise ValueError('Final CIFAR pilot must retain both locked complete models')
+    for records in (tuning, final):
+        complete = [r for r in records if r['status'] == 'complete']
+        for key in ('initial_parameter_sha256', 'training_order_sha256', 'augmentation_sha256',
+                    'train_ids_sha256', 'validation_ids_sha256', 'gallery_ids_sha256', 'query_ids_sha256'):
+            if len({r[key] for r in complete}) != 1:
+                raise ValueError('CIFAR paired starts, image IDs or augmented data order differ')
+    features = {(r['optimizer'], r['seed']): dict(feature_archive_sha256=r['feature_archive_sha256'],
+                    precision=r['curve'][-1]['precision']) for r in final}
+    raw, quality = validate_gallery_reports(bundle['reports'], previous, features, GALLERY_METHODS, [8], 10000)
+    if quality != bundle['quality_summary']:
+        raise ValueError('CIFAR gallery aggregate differs from all raw trials')
+    stores = {m: ({'compact_2': 'Uniform compact 2-bit', 'compact_4': 'Uniform compact 4-bit',
+                  'symmetric_2': 'Uniform symmetric 2-bit', 'symmetric_4': 'Uniform symmetric 4-bit'}.get(m) or STORES[m])
+              for m in GALLERY_METHODS}
+    return gallery_table_rows(f'CIFAR-100 pilot / {p["final_epochs"]} epochs / seed 8', quality,
+                              { (r['optimizer'], r['seed']): r for r in final}, stores, [8], 10000)
+
+
 def collect_fresh_rows(data):
     """One table: all current-backend methods, terminal checks, and total systems cost."""
     if set(data['studies']) != {'epochs', 'timed'}:
@@ -534,7 +704,9 @@ def collect_fresh_rows(data):
         current = collect_integrated_rows(data['integrated'], data['tuned_batch512'])
         # Superseded batch-64 studies remain fully validated above and in the JSON.
         systems = [r for r in checks if r['training_unit'] == 'ms/step']
-        return current + systems + batch_rows + tuned_rows
+        compact = collect_compact_rows(data['compact_uniform'], data['integrated']) if 'compact_uniform' in data else []
+        cifar = collect_cifar_rows(data['cifar_pilot'], data['integrated']) if 'cifar_pilot' in data else []
+        return current + compact + cifar + systems + batch_rows + tuned_rows
     return rows + checks + batch_rows + tuned_rows
 
 
@@ -546,15 +718,18 @@ def collect_rows(data):
 
 def display_rows(rows):
     def pm(mean, sd, scale=1, digits=2):
-        return '—' if mean is None else f'{scale*mean:.{digits}f} ± {scale*sd:.{digits}f}'
+        if mean is None:
+            return '—'
+        return f'{scale*mean:.{digits}f}' if sd is None else f'{scale*mean:.{digits}f} ± {scale*sd:.{digits}f}'
     for r in rows:
         cost = ('—' if r['training_cost'] is None else
-                f"{r['training_cost']:.3f} ms/step" if r['training_sd'] is None else
+                f"{r['training_cost']:.3f} {r['training_unit']}" if r['training_sd'] is None else
                 pm(r['training_cost'], r['training_sd'], digits=3) + ' ' + r['training_unit'])
         if r['speedup'] is not None:
             cost += f" ({r['speedup']:.3f}×)"
-        delta = ('—' if r['precision_change_mean'] is None else
-                 f"{100*r['precision_change_mean']:+.2f} ± {100*r['precision_change_sd']:.2f}")
+        delta = ('—' if r['precision_change_mean'] is None else f"{100*r['precision_change_mean']:+.2f}")
+        if r['precision_change_mean'] is not None and r['precision_change_sd'] is not None:
+            delta += f" ± {100*r['precision_change_sd']:.2f}"
         updates = '—' if r['updates_mean'] is None else f"{r['updates_mean']:,.0f}"
         if r['updates_sd']:
             updates += f" ± {r['updates_sd']:,.0f}"
@@ -722,6 +897,8 @@ def main():
     parser.add_argument('--batch-run', type=Path, help='Attach fixed-image batch timing to the same evidence/table')
     parser.add_argument('--tuned512-run', type=Path, help='Attach validation-tuned batch512 target comparisons')
     parser.add_argument('--integrated-run', type=Path, help='Attach fixed terminal tuned optimizer × gallery comparison')
+    parser.add_argument('--compact-run', type=Path, help='Attach shared-min uniform comparison on the existing Fashion models')
+    parser.add_argument('--cifar-run', type=Path, help='Attach a labelled one-seed CIFAR model/data feasibility pilot')
     args = parser.parse_args()
     evidence = ROOT / 'report/results.json'
     data = json.loads(evidence.read_text())
@@ -745,6 +922,12 @@ def main():
         data['integrated'] = json.loads(path.read_text())
         data['provenance']['integrated_raw_path'] = str(path.relative_to(ROOT))
         data['provenance']['integrated_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+    for argument, key in ((args.compact_run, 'compact_uniform'), (args.cifar_run, 'cifar_pilot')):
+        if argument:
+            path = argument.resolve()
+            data[key] = json.loads(path.read_text())
+            data['provenance'][key+'_raw_path'] = str(path.relative_to(ROOT))
+            data['provenance'][key+'_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
     rows = collect_rows(data)
     if json_hash(data['system']) != data['provenance']['system_raw_sha256']:
         raise ValueError('Curated systems data differs from its frozen raw report')
@@ -787,6 +970,9 @@ def main():
         for path, expected in run['protocol']['source_sha256'].items():
             if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
                 raise ValueError('Measured integrated source changed: ' + path)
+    for key in ('compact_uniform', 'cifar_pilot'):
+        if key in data and json_hash(data[key]) != data['provenance'][key+'_raw_sha256']:
+            raise ValueError('New gallery/pilot evidence differs from its sealed raw run: ' + key)
     for method in OPTIMIZERS:
         selection = data['locked_rate_selection']
         if select_configuration(selection['all_candidates'][method]) != selection['selected'][method]:
@@ -798,7 +984,7 @@ def main():
         print('Local artifact proof:', json.dumps(proof, sort_keys=True))
         if not args.check:
             data['provenance']['artifact_validation'] = proof
-    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run or args.tuned512_run or args.integrated_run):
+    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run or args.tuned512_run or args.integrated_run or args.compact_run or args.cifar_run):
         evidence.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
     readme = ROOT / 'README.md'
     current = readme.read_text()

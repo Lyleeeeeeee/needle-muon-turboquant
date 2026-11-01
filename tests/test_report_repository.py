@@ -24,8 +24,9 @@ def fresh_evidence():
 def test_fresh_table_has_complete_cross_products_and_explicit_resource_costs():
     from build_report import collect_fresh_rows
 
-    rows = collect_fresh_rows(fresh_evidence())
     data = fresh_evidence()
+    data.pop('integrated', None)  # Retained historical studies remain independently valid.
+    rows = collect_fresh_rows(data)
     assert len(rows) == (28 + (8 if 'time_to_quality' in data else 0)
                          + (6 if 'batch_timing' in data else 0) + (8 if 'tuned_batch512' in data else 0))
     for name in ('10 epochs / final CPU', '220s / final CPU'):

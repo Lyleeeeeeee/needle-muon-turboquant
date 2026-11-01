@@ -18,6 +18,7 @@ from benchmark_system import validate_measurements
 from benchmark_batch import summarize_batches
 from time_to_quality import TARGETS, THREADS, checkpoint_schedule, first_crossing, summarize_trajectories
 from tune_batch512 import choose_rates, final_schedule, learning_rate_grid, summarize_runs
+from evaluate_tuned import make_protocol, select_terminal_snapshots
 
 STORES = {'fp32': 'FP32', 'uniform_2': 'Uniform 2-bit', 'uniform_4': 'Uniform 4-bit',
           'turbo_2': 'TurboQuant 2-bit', 'turbo_4': 'TurboQuant 4-bit'}
@@ -401,6 +402,68 @@ def collect_tuned512_rows(run, baseline):
     return threshold_rows(summary, 'Batch 512 / ')
 
 
+def collect_integrated_rows(run, parent):
+    """Bind every final gallery trial to its own fixed terminal tuned checkpoint."""
+    selected = select_terminal_snapshots(parent)
+    p = run['protocol']
+    if (p != make_protocol(parent, Path(p['parent_run']), selected)
+            or p['smoke'] or p['max_steps'] != 10800 or p['training_seeds'] != list(SEEDS)
+            or run['selected_snapshots'] != selected or not run['common_image_ids_verified']):
+        raise ValueError('Integrated checkpoint selection or evaluation protocol differs')
+    sources = {(r['optimizer'], r['seed']): r for r in selected}
+    metadata = run['feature_metadata']
+    features = {(r['encoder'], r['training_seed']): r for r in metadata}
+    if len(metadata) != 6 or set(features) != set(sources):
+        raise ValueError('Expected six own-model embedding archives')
+    stamp = dict(protocol_sha256=json_hash(p))
+    for key, feature in features.items():
+        source = sources[key]
+        if (feature['checkpoint_sha256'] != source['checkpoint_sha256']
+                or feature['runner_provenance'] != stamp or feature['device'] != 'cpu()'
+                or feature['gallery_shape'] != [55000, 64] or feature['query_shape'] != [1000, 64]
+                or feature['gallery_ids_sha256'] != source['gallery_ids_sha256']
+                or feature['query_ids_sha256'] != source['query_ids_sha256']
+                or feature['data_files_sha256'] != p['data_files_sha256']
+                or feature['validation_size_excluded'] != 5000 or feature['split_seed'] != 17
+                or not math.isfinite(feature['export_wall_seconds']) or feature['export_wall_seconds'] <= 0):
+            raise ValueError('Integrated own-model feature provenance or image selection differs')
+    trials = run['retrieval_rows']
+    expected = {(m, s, q, rotation) for m, s in sources for q in STORES
+                for rotation in ((7, 8, 9) if q.startswith('turbo') else (7,))}
+    keys = {(r['encoder'], r['training_seed'], r['method'], r['rotation_seed']) for r in trials}
+    if len(trials) != 54 or keys != expected:
+        raise ValueError('Missing or duplicate optimizer/store/rotation trial')
+    validate_retrieval(trials)
+    sizes = dict(fp32=14080000, uniform_2=1320000, uniform_4=2200000,
+                 turbo_2=1116400, turbo_4=1996448)
+    for row in trials:
+        key = row['encoder'], row['training_seed']
+        expected_stamp = dict(stamp, feature_archive_sha256=features[key]['feature_archive_sha256'])
+        if (row['runner_provenance'] != expected_stamp or row['stored_bytes'] != sizes[row['method']]
+                or row['compression_ratio_vs_fp32'] != 14080000 / row['stored_bytes']
+                or any(not math.isfinite(row[k]) or row[k] < 0
+                       for k in ('setup_seconds', 'build_seconds', 'relative_reconstruction_mse'))):
+            raise ValueError('Integrated trial source, persistent bytes or build cost differs')
+        if row['method'] == 'fp32' and (row['label_precision_at_k'] != sources[key]['expected_fp32_precision']
+                                      or row['recall_at_k'] != 1.):
+            raise ValueError('FP32 result differs from the source terminal trajectory')
+    quality = aggregate_quality(trials)
+    if quality != run['quality_summary']:
+        raise ValueError('Integrated aggregate differs from complete raw trials')
+    costs = {m: distribution([sources[m, seed]['training_seconds'] for seed in SEEDS]) for m in OPTIMIZERS}
+    rows = quality_rows('Batch 512 / 100 epochs / tuned terminal', quality, costs)
+    for row in rows:
+        method = next(m for m, label in OPTIMIZERS.items() if label == row['optimizer'])
+        store = next(q for q, label in STORES.items() if label == row['store'])
+        delta = quality['encoders'][method][store]['precision_change_vs_own_fp32']
+        states = {sources[method, seed]['optimizer_numeric_state_bytes'] for seed in SEEDS}
+        if len(states) != 1:
+            raise ValueError('Optimizer numeric state differs across paired seeds')
+        row.update(precision_change_mean=delta['mean'], precision_change_sd=delta['sample_std'],
+                   updates_mean=10800, updates_sd=0, optimizer_state_bytes=states.pop())
+    return rows
+
+
 def collect_fresh_rows(data):
     """One table: all current-backend methods, terminal checks, and total systems cost."""
     if set(data['studies']) != {'epochs', 'timed'}:
@@ -467,6 +530,11 @@ def collect_fresh_rows(data):
         rows.extend(collect_time_to_quality_rows(data['time_to_quality'], data['studies']['epochs']))
     batch_rows = collect_batch_rows(data['batch_timing'], data['studies']['epochs']) if 'batch_timing' in data else []
     tuned_rows = collect_tuned512_rows(data['tuned_batch512'], data['studies']['epochs']) if 'tuned_batch512' in data else []
+    if 'integrated' in data:
+        current = collect_integrated_rows(data['integrated'], data['tuned_batch512'])
+        # Superseded batch-64 studies remain fully validated above and in the JSON.
+        systems = [r for r in checks if r['training_unit'] == 'ms/step']
+        return current + systems + batch_rows + tuned_rows
     return rows + checks + batch_rows + tuned_rows
 
 
@@ -653,6 +721,7 @@ def main():
                         help='Attach a complete, validated time-to-quality run to the same evidence/table')
     parser.add_argument('--batch-run', type=Path, help='Attach fixed-image batch timing to the same evidence/table')
     parser.add_argument('--tuned512-run', type=Path, help='Attach validation-tuned batch512 target comparisons')
+    parser.add_argument('--integrated-run', type=Path, help='Attach fixed terminal tuned optimizer × gallery comparison')
     args = parser.parse_args()
     evidence = ROOT / 'report/results.json'
     data = json.loads(evidence.read_text())
@@ -671,6 +740,11 @@ def main():
         data['tuned_batch512'] = json.loads(path.read_text())
         data['provenance']['tuned512_raw_path'] = str(path.relative_to(ROOT))
         data['provenance']['tuned512_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if args.integrated_run:
+        path = args.integrated_run.resolve()
+        data['integrated'] = json.loads(path.read_text())
+        data['provenance']['integrated_raw_path'] = str(path.relative_to(ROOT))
+        data['provenance']['integrated_raw_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
     rows = collect_rows(data)
     if json_hash(data['system']) != data['provenance']['system_raw_sha256']:
         raise ValueError('Curated systems data differs from its frozen raw report')
@@ -704,6 +778,15 @@ def main():
         for path, expected in run['final']['protocol']['source_sha256'].items():
             if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
                 raise ValueError('Measured tuned batch512 source changed: ' + path)
+    if 'integrated' in data:
+        run = data['integrated']
+        if json_hash(run) != data['provenance']['integrated_raw_sha256']:
+            raise ValueError('Integrated comparison differs from its frozen raw run')
+        if run['protocol']['parent_tuned_run_sha256'] != json_hash(data['tuned_batch512']):
+            raise ValueError('Integrated encoders differ from the curated tuned study')
+        for path, expected in run['protocol']['source_sha256'].items():
+            if hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != expected:
+                raise ValueError('Measured integrated source changed: ' + path)
     for method in OPTIMIZERS:
         selection = data['locked_rate_selection']
         if select_configuration(selection['all_candidates'][method]) != selection['selected'][method]:
@@ -715,7 +798,7 @@ def main():
         print('Local artifact proof:', json.dumps(proof, sort_keys=True))
         if not args.check:
             data['provenance']['artifact_validation'] = proof
-    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run or args.tuned512_run):
+    if not args.check and (args.verify_artifacts or args.time_to_quality_run or args.batch_run or args.tuned512_run or args.integrated_run):
         evidence.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
     readme = ROOT / 'README.md'
     current = readme.read_text()

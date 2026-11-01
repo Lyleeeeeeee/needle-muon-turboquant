@@ -26,10 +26,10 @@ REPORTS = ROOT / 'reports/time_budget_study'
 ARTIFACTS = ROOT / 'results/time_budget_study'
 SOURCES = ['experiments/profile_optimizer.py', 'apps/models.py', 'python/needle/optim.py',
            'python/needle/backend_ndarray/ndarray.py', 'python/needle/autograd.py',
-           'python/needle/ops/ops_mathematic.py', 'src/ndarray_backend_cpu.cc']
+           'python/needle/ops/ops_mathematic.py', 'src/ndarray_backend_cpu.cc', 'src/muon_cpu.h']
 
 
-def make_fixture(method):
+def make_fixture(method, use_tiled_ns=True):
     if method not in ('adamw', 'muon'):
         raise ValueError('Unknown optimizer')
     np.random.seed(23)
@@ -48,7 +48,8 @@ def make_fixture(method):
         matrices = model.muon_parameters()
         ids = {id(p) for p in matrices}
         optimizer = optim.MuonWithAuxAdamW(matrices, [p for p in params if id(p) not in ids],
-                                          lr=.007, aux_lr=.001, weight_decay=.01)
+                                          lr=.007, aux_lr=.001, weight_decay=.01,
+                                          use_tiled_ns=use_tiled_ns)
     else:
         optimizer = optim.AdamW(params, lr=.001, weight_decay=.01)
     return {'optimizer': optimizer, 'parameters': params, 'device': device,
@@ -62,13 +63,21 @@ def instrumented_steps(fixture, steps):
     record = {'steps': steps, 'phase_seconds': {}, 'phase_calls': {},
               'ndarray_matmul': {'calls': 0, 'seconds': 0.},
               'ndarray_compact': {'calls': 0, 'seconds': 0.},
-              'native_kernels': {}, 'matmul_shapes': {}}
+              'native_kernels': {}, 'matmul_shapes': {}, 'logical_ns_matmul_calls': 0,
+              'packed_layout': {'passes': 0, 'written_elements': 0}}
     optimizer = fixture['optimizer']
     with ExitStack() as restore:
         def wrap(owner, name, counter):
             original = getattr(owner, name)
 
             def timed(*args, **kwargs):
+                if owner is fixture['device'].mod and name == 'compact':
+                    counter['written_elements'] = counter.get('written_elements', 0) + args[1].size
+                if owner is fixture['device'].mod and name == 'muon_ns_tiled':
+                    rows, columns, iterations = args[2:]
+                    record['logical_ns_matmul_calls'] += 3 * iterations
+                    record['packed_layout']['passes'] += iterations + 2
+                    record['packed_layout']['written_elements'] += (iterations + 2) * rows * columns
                 started = time.perf_counter()
                 try:
                     return original(*args, **kwargs)
@@ -80,7 +89,7 @@ def instrumented_steps(fixture, steps):
             restore.callback(setattr, owner, name, original)
 
         for name in dir(fixture['device'].mod):
-            if (name in ('compact', 'matmul', 'matmul_tiled', 'fill')
+            if (name in ('compact', 'matmul', 'matmul_tiled', 'fill', 'muon_ns_tiled')
                     or name.startswith(('ewise_', 'scalar_', 'reduce_'))):
                 counter = record['native_kernels'].setdefault(name, {'calls': 0, 'seconds': 0.})
                 wrap(fixture['device'].mod, name, counter)
@@ -110,6 +119,7 @@ def instrumented_steps(fixture, steps):
         for _ in range(steps):
             optimizer.step()
         record['total_seconds'] = time.perf_counter() - started
+        record['logical_ns_matmul_calls'] += record['ndarray_matmul']['calls']
         record['phase_seconds'] = {label: v['seconds'] for label, v in counters.items()}
         record['phase_calls'] = {label: v['calls'] for label, v in counters.items()}
     return record
@@ -139,7 +149,7 @@ def main():
             plain[method].append((time.perf_counter() - started) / args.steps)
     instrumented = {method: instrumented_steps(fixture, args.steps)
                     for method, fixture in fixtures.items()}
-    assert instrumented['muon']['ndarray_matmul']['calls'] == 45 * args.steps
+    assert instrumented['muon']['logical_ns_matmul_calls'] == 45 * args.steps
     assert instrumented['adamw']['ndarray_matmul']['calls'] == 0
     audit = make_fixture('muon')
     for _ in range(10):
@@ -190,7 +200,7 @@ def main():
               '| Operation | Calls/update | ms/update |', '|---|---:|---:|']
     values = [('NDArray matmul, including packing and dispatch', measured['ndarray_matmul'])]
     values += [(f'Native {name}', row) for name, row in measured['native_kernels'].items()
-               if row['calls'] and name in ('matmul', 'matmul_tiled', 'compact')]
+               if row['calls'] and name in ('matmul', 'matmul_tiled', 'compact', 'muon_ns_tiled')]
     for label, row in values:
         lines.append(f"| {label} | {row['calls']/args.steps:g} | {1000*row['seconds']/args.steps:.3f} |")
     native_total = sum(r['seconds'] for r in measured['native_kernels'].values())
@@ -200,9 +210,12 @@ def main():
               'The remaining term is not an isolated allocator measurement. NDArray matmul is '
               'inclusive of native matrix kernels and their layout copies; do not sum nested rows.', '',
               'Three hidden matrices × five NS iterations × three products =45 extra matrix '
-              'products per update. The native tiled path repacks both inputs and unpacks its '
-              'output for every product. The generic Compact kernel computes strided indices '
-              'per element, so layout work can be substantial even for small matrices.', '',
+              'products per update. The reference path repacks both inputs and unpacks its '
+              'output for every product. The packed NS path instead retains tiled intermediates '
+              'and performs one input pack, five tiled transposes and one output unpack per '
+              'hidden matrix. Generic Compact calls and derived internal layout passes are '
+              'reported separately in JSON. Native NS time includes its internal matrix products '
+              'and layout work; do not add it to nested logical operation counts.', '',
               'The NS matrix products alone add approximately138.94 million multiply/add FLOPs '
               'per update. The five dense layers\' forward and two backward products at batch64 '
               'are approximately54.51 million FLOPs; this estimate excludes elementwise/loss '

@@ -63,3 +63,55 @@ for AdamW (about 18% less time). All measured parameter/loss/feature hashes are
 identical. The measurements show execution-speed improvement; equal-time
 retrieval quality has not been rerun with this backend. Five blocks are timing
 repetitions, not five independent model-quality seeds.
+
+## 2026-11-01: Reuse tiled Muon Newton-Schulz intermediates
+
+**Reason.** The first Compact optimization made each layout conversion cheaper,
+but left repeated pack/matmul/unpack sequences in every NS iteration. The user
+approved reducing these repeated conversions and preserving the evidence.
+
+**Change.** Add a local native CPU NS path in `src/muon_cpu.h`. Normalize with the
+same Needle operations as before, pack X once, and keep all NS intermediate
+matrices tiled. Refresh X's tiled transpose each iteration because X changes;
+unpack the final result once. Reuse the existing MatmulTiled/AlignedDot,
+ScalarMul and EwiseAdd operations and their separate float32 rounding stages.
+Five scratch buffers are reused within a call, not cached across updates.
+
+**Dispatch and reference.** Muon uses the native path by default for supported
+tile-aligned CPU matrices. `use_tiled_ns=False` preserves the reference path;
+NumPy/CUDA and unsupported dimensions automatically fall back. Momentum,
+normalization, NS coefficients/count, aspect scaling, weight decay and auxiliary
+AdamW are unchanged. The generic NDArray/autodiff/matmul interfaces are unchanged.
+
+**Evidence and scope.** The full suite passes 126 checks, including direct
+native/reference bit parity, independent float64 singular-value oracles, source
+preservation, shape errors and fallback routing. Profiling counts logical matrix
+products and internal derived layout passes separately, so work inside the new
+native call is not mislabeled as Python time. See the
+[accepted design](muon_tiled_design.md) and
+[separate second-stage measurements](../reports/muon_tiled/summary.md).
+The comparison uses the same final CPU binary for both switches, with the
+previous Compact optimization already enabled. Baseline revision is
+`e94a928cbecc78db6aaaaa047363b2f7140a007a`; this measures the second stage's
+incremental effect, not an unpaired comparison with older timing results.
+
+**Report-ready measured outcome.** Five paired timing repetitions show a Muon
+hybrid optimizer median of 14.38 to 10.96 ms/update (paired-median speedup 1.351x).
+The 128-step training median decreases from 19.56 to 15.94 ms/update (paired
+speedup 1.239x; approximately 19% less time), while AdamW stays approximately
+unchanged. All final parameters, 128 losses and 128 validation embeddings are
+bit-identical between paths and reproduce the prior Compact-stage outputs.
+
+**Layout work.** Each hybrid update still performs 45 logical matrix products.
+Generic Compact calls decrease from 157 to 7, but the native path also performs
+21 internal passes (three packs, fifteen tiled transposes and three unpacks).
+Total logical layout passes decrease from 157 to 28. Counted/derived float32
+layout writes decrease from 8.077312 to 1.441792 decimal MB; these are not physical
+DRAM traffic, retained-state memory or peak process memory measurements.
+
+**Interpretation.** The native path also reduces Python dispatch and reuses
+within-call scratch buffers; the measured gain is not an isolated estimate of
+layout reuse alone. These are execution-speed measurements at fixed work,
+not evidence that Muon now beats AdamW at equal time. The 220-second retrieval
+comparison has not been rerun. Five timing repetitions use one training seed,
+not five independent model-quality seeds.

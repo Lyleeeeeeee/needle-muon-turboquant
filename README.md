@@ -221,6 +221,26 @@ Historical experiment validators pin earlier backend source hashes. Use their
 recorded Git revision to reproduce them; their published timing results have
 not been replaced by the optimized backend measurements.
 
+## Tiled Muon intermediate reuse
+
+Muon retains normalized NS intermediates in the native tiled layout across all
+iterations on supported CPU matrices. The existing matrix kernels and float32
+arithmetic stages are reused; normalization, momentum and aspect scaling remain
+in Needle. Both dimensions must be multiples of the native tile size (8).
+Other backends/sizes fall back automatically. `use_tiled_ns=False` on Muon or
+MuonWithAuxAdamW explicitly selects the reference path for controlled comparisons.
+
+The [design](docs/muon_tiled_design.md), [paired measurements](reports/muon_tiled/summary.md)
+and [durable change log](docs/project_change_log.md) preserve algorithm parity,
+logical layout work (including internal transposes), and timing limitations.
+The earlier Compact benchmark explicitly disables tiled NS to keep its separate
+ablation meaningful. Historical records remain pinned to their revisions.
+
+```bash
+python experiments/benchmark_muon_tiled.py
+python experiments/summarize_muon_tiled.py
+```
+
 ## Verification and scope
 
 Tests cover exact-distribution centroids, independent numerical references, rotation orthogonality, packed layout and padding, native/reference parity, zero/constant vectors, metadata accounting, serialization, stable blockwise retrieval, gradients, optimizers, and small-model training. They are project checks rather than the complete homework grading suite.

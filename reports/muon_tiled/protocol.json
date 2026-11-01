@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-01",
+  "baseline_commit": "e94a928cbecc78db6aaaaa047363b2f7140a007a",
+  "blocks": 5,
+  "comparison": "same final binary/Python/Compact;use_tiled_ns False versus True",
+  "reference": "old",
+  "packed": "new",
+  "order": "old,new on even blocks;new,old on odd blocks;sequential processes",
+  "source_sha256": {
+    "src/ndarray_backend_cpu.cc": "cb22adcd4ab8b564411ed16f6c41b0b405d73a3a9dfe6907129f6844475f46ac",
+    "src/muon_cpu.h": "61aca1135fdf55e17c4eec51d1a535fd2df4bedb6bd29417d5b3a1d540f66939",
+    "src/quantization_cpu.h": "03b34cbc88dd79de14fdbb92297e4f09fa8b177c43c4dd432ba61e2c2a2b36a2",
+    "python/needle/optim.py": "cf4caa9ca1d6f87aa08aa6b563d680d26938edd57ddaf08621b7ab4d3b204a38",
+    "python/needle/backend_ndarray/ndarray.py": "b2f0d0f957de401dfc01fce5712f577343d077d7468761497700a8fe396a6aa8",
+    "python/needle/autograd.py": "2285088e2010d826f25f8fd6b012b6338fa5ccbd08804c7134a54ee0068e3eb7",
+    "apps/models.py": "758c68183c1318551568ac8e76421eb586c6638a76dbed49397dd5ec9a5067e6",
+    "apps/train_baseline.py": "87e5f2f1d913620b58e4911efeb3cd748575b5e1470aa6772919a820b24d45a1",
+    "experiments/profile_optimizer.py": "1e62039a4734de1906e3a58250909c860cc390913a8096c0e2c8af83d8638e97",
+    "experiments/benchmark_muon_tiled.py": "8bcb1cf3d5cc41179199d334a9f61e2f6e9df4d1efb499ea8b0fe64d643b6ca8",
+    "experiments/benchmark_compact_optimization.py": "db5d3b4c8baf56cfbae05d32f0fa1db1a926165173cff2bfed41c532db8b86f8",
+    "tools/build_cpu.py": "5558f54e2aa1182e92481e10c5320c55a2ffedff72980bc9ec9e5ecd747083bb"
+  },
+  "data_files_sha256": {
+    "train-images-idx3-ubyte.gz": "3aede38d61863908ad78613f6a32ed271626dd12800ba2636569512369268a84",
+    "train-labels-idx1-ubyte.gz": "a04f17134ac03560a47e3764e11b92fc97de4d1bfaf8ba1a3aa29af54cc90845"
+  },
+  "platform": "macOS-14.6.1-arm64-arm-64bit-Mach-O",
+  "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 11:23:37) [Clang 14.0.6 ]",
+  "transform_calls": 40,
+  "optimizer_calls": 100,
+  "training_updates": 128,
+  "training_seed": 8,
+  "batch_size": 64,
+  "split_seed": 17,
+  "architecture": [
+    784,
+    128,
+    128,
+    128,
+    64,
+    10
+  ],
+  "rates": {
+    "adamw_auxiliary": 0.001,
+    "muon": 0.007
+  },
+  "scope": "execution speed and exact output parity;not new model-quality evidence"
+}

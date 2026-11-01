@@ -156,18 +156,19 @@ class Muon(Optimizer):
     Missing gradients are skipped. Numeric state excludes transient NS matrices.
     """
     def __init__(self, params, lr=.02, momentum=.95, weight_decay=0.,
-                 ns_steps=5, nesterov=True, eps=1e-7):
+                 ns_steps=5, nesterov=True, eps=1e-7, use_tiled_ns=True):
         params = list(params)
         if (not params or len({id(p) for p in params}) != len(params)
                 or any(len(p.shape) != 2 or min(p.shape) <= 0 for p in params)):
             raise ValueError('Muon requires unique nonempty 2D Linear matrices')
         if (not all(math.isfinite(v) for v in (lr, momentum, weight_decay, eps))
                 or lr < 0 or not 0 <= momentum < 1 or weight_decay < 0 or eps <= 0
-                or not isinstance(ns_steps, int) or ns_steps <= 0):
+                or not isinstance(ns_steps, int) or ns_steps <= 0 or type(use_tiled_ns) is not bool):
             raise ValueError('Invalid Muon hyperparameters')
         super().__init__(params)
         self.lr, self.momentum, self.weight_decay = lr, momentum, weight_decay
         self.ns_steps, self.nesterov, self.eps = ns_steps, nesterov, eps
+        self.use_tiled_ns = use_tiled_ns
         self.buffers = {}
 
     @property
@@ -179,10 +180,21 @@ class Muon(Optimizer):
         x = gradient.transpose() if rows > columns else gradient
         denominator = ((x * x).sum() ** .5 + self.eps).reshape((1, 1)).broadcast_to(x.shape)
         x = x / denominator
-        for _ in range(self.ns_steps):
-            gram = x @ x.transpose()
-            polynomial = gram * -4.7750 + (gram @ gram) * 2.0315
-            x = x * 3.4445 + polynomial @ x
+        array = x.realize_cached_data()
+        tiled = (self.use_tiled_ns and ndl.BACKEND == 'nd' and array.device == ndl.cpu()
+                 and hasattr(array.device, 'muon_ns_tiled')
+                 and all(d % array.device.__tile_size__ == 0 for d in array.shape))
+        if tiled:
+            source = array.compact()
+            output = array.device.empty(array.shape, dtype=array.dtype)
+            array.device.muon_ns_tiled(source._handle, output._handle,
+                                      *array.shape, self.ns_steps)
+            x = ndl.Tensor.make_const(output)
+        else:
+            for _ in range(self.ns_steps):
+                gram = x @ x.transpose()
+                polynomial = gram * -4.7750 + (gram @ gram) * 2.0315
+                x = x * 3.4445 + polynomial @ x
         if rows > columns:
             x = x.transpose()
         # Author scaling is output/input; Needle Linear stores input/output.
@@ -208,14 +220,14 @@ class Muon(Optimizer):
 class MuonWithAuxAdamW(Optimizer):
     """Disjoint hidden-matrix Muon and auxiliary AdamW parameter groups."""
     def __init__(self, muon_params, adamw_params, lr=.02, aux_lr=.003,
-                 momentum=.95, weight_decay=.01, ns_steps=5):
+                 momentum=.95, weight_decay=.01, ns_steps=5, use_tiled_ns=True):
         muon_params, adamw_params = list(muon_params), list(adamw_params)
         params = muon_params + adamw_params
         if len({id(p) for p in params}) != len(params):
             raise ValueError('Muon and AdamW groups must be disjoint without duplicates')
         super().__init__(params)
         self.muon = Muon(muon_params, lr=lr, momentum=momentum,
-                         weight_decay=weight_decay, ns_steps=ns_steps)
+                         weight_decay=weight_decay, ns_steps=ns_steps, use_tiled_ns=use_tiled_ns)
         self.adamw = AdamW(adamw_params, lr=aux_lr, weight_decay=weight_decay)
 
     @property

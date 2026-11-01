@@ -17,8 +17,10 @@ def test_instrumentation_counts_ns_products_and_restores_backend():
     before = [p.numpy().copy() for p in fixture['parameters']]
     result = instrumented_steps(fixture, 2)
     assert result['steps'] == 2
-    assert result['ndarray_matmul']['calls'] == 90
-    assert result['native_kernels']['matmul_tiled']['calls'] == 90
+    assert result['logical_ns_matmul_calls'] == 90
+    assert result['ndarray_matmul']['calls'] == 0
+    assert result['native_kernels']['muon_ns_tiled']['calls'] == 6
+    assert result['packed_layout']['passes'] == 42
     assert result['native_kernels']['compact']['calls'] > 0
     assert result['phase_seconds']['muon'] > 0
     assert result['phase_seconds']['auxiliary_adamw'] > 0
@@ -26,6 +28,16 @@ def test_instrumentation_counts_ns_products_and_restores_backend():
     assert fixture['device'].mod.compact is original_compact
     assert all(np.isfinite(p.numpy()).all() for p in fixture['parameters'])
     assert any(not np.array_equal(a, p.numpy()) for a, p in zip(before, fixture['parameters']))
+
+
+def test_reference_profile_keeps_original_calls_for_comparison():
+    from profile_optimizer import make_fixture, instrumented_steps
+
+    result = instrumented_steps(make_fixture('muon', use_tiled_ns=False), 1)
+    assert result['logical_ns_matmul_calls'] == 45
+    assert result['ndarray_matmul']['calls'] == 45
+    assert result['native_kernels']['compact']['calls'] == 157
+    assert result['packed_layout']['passes'] == 0
 
 
 def test_instrumented_and_plain_updates_produce_identical_parameters():

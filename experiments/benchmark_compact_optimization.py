@@ -130,7 +130,7 @@ def worker(args):
     diagnostics = {}
     if args.mode == 'all':
         for method in ('adamw', 'muon'):
-            fixture = make_fixture(method)
+            fixture = make_fixture(method, use_tiled_ns=False)
             for _ in range(10):
                 fixture['optimizer'].step()
             started = time.perf_counter()
@@ -161,7 +161,8 @@ def worker(args):
                 matrices = model.muon_parameters()
                 ids = {id(p) for p in matrices}
                 optimizer = optim.MuonWithAuxAdamW(matrices, [p for p in params if id(p) not in ids],
-                                                  lr=.007, aux_lr=.001, weight_decay=.01)
+                                                  lr=.007, aux_lr=.001, weight_decay=.01,
+                                                  use_tiled_ns=False)
             else:
                 optimizer = optim.AdamW(params, lr=.001, weight_decay=.01)
             criterion = nn.SoftmaxLoss()

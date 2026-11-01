@@ -437,6 +437,7 @@ void ReduceSum(const AlignedArray& a, AlignedArray* out, size_t reduce_size) {
 }  // namespace needle
 
 #include "quantization_cpu.h"
+#include "muon_cpu.h"
 
 PYBIND11_MODULE(ndarray_backend_cpu, m) {
   namespace py = pybind11;
@@ -452,6 +453,8 @@ PYBIND11_MODULE(ndarray_backend_cpu, m) {
       .def(py::init<size_t>(), py::return_value_policy::take_ownership)
       .def("ptr", &AlignedArray::ptr_as_int)
       .def_readonly("size", &AlignedArray::size);
+
+  m.def("muon_ns_tiled", muon_detail::NewtonSchulzTiled);
 
   // return numpy array (with copying for simplicity, otherwise garbage
   // collection is a pain)

@@ -1,5 +1,10 @@
 # Quantization component: preliminary results
 
+Follow-up: the [completed scale study](quantization_scale_summary.md) expands to
+60,000 training/gallery images and 1,000 common queries. The original records
+below are preserved. Larger-data training improves retrieval, but the uniform
+baseline advantage remains in the tested configurations.
+
 ## What is implemented
 
 TurboQuant-MSE now has exact-distribution codebooks, Needle rotations, native CPU 2/4-bit packing, block decoding/search, and NPZ persistence. FP32 and packed affine-uniform baselines use the same retrieval pipeline. All 37 current checks pass locally.

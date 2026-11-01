@@ -20,6 +20,14 @@ import needle as ndl
 from needle.quantization import TurboQuantMSE, UniformQuantizer, FloatVectorStore
 
 
+def retrieval_quality(indices, truth, labels, k, query_count):
+    selected = indices[:query_count]
+    recall = np.mean([len(set(row) & set(exact)) / k
+                      for row, exact in zip(selected, truth[:query_count])])
+    precision = float((labels[0][selected] == labels[1][:query_count, None]).mean()) if labels else None
+    return {'query_count': query_count, 'recall_at_k': float(recall), 'label_precision_at_k': precision}
+
+
 def worker(args):
     with np.load(args.features, allow_pickle=False) as source:
         gallery, queries, truth = source['gallery'], source['queries'], source['ground_truth']
@@ -64,15 +72,17 @@ def worker(args):
         started = time.perf_counter()
         result = store.search(queries, k=args.k, block_size=args.block_size)
         samples.append(time.perf_counter() - started)
-    recall = np.mean([len(set(row) & set(exact)) / args.k for row, exact in zip(result.indices, truth)])
-    precision = float((labels[0][result.indices] == labels[1][:, None]).mean()) if labels else None
+    quality = retrieval_quality(result.indices, truth, labels, args.k, len(queries))
+    prefix_quality = [retrieval_quality(result.indices, truth, labels, args.k, count)
+                      for count in sorted({min(256, len(queries)), len(queries)})]
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     record = {'method': method, 'device': str(device), 'stored_bytes': store.nbytes,
               'storage_breakdown': store.storage_bytes, 'serialized_bytes': archive.stat().st_size,
               'setup_seconds': setup_seconds, 'build_seconds': build_seconds,
               'query_seconds': samples, 'query_seconds_median': float(np.median(samples)),
               'relative_reconstruction_mse': squared_error / energy if energy else 0.,
-              'recall_at_k': float(recall), 'label_precision_at_k': precision,
+              'recall_at_k': quality['recall_at_k'], 'label_precision_at_k': quality['label_precision_at_k'],
+              'query_prefix_quality': prefix_quality,
               'max_decoded_block_bytes': result.max_decoded_block_bytes,
               'max_score_block_bytes': result.max_score_block_bytes,
               'process_peak_rss_bytes': int(rss if platform.system() == 'Darwin' else rss * 1024)}

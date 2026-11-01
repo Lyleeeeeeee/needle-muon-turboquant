@@ -43,6 +43,13 @@ Each comparison runs in a fresh worker and separately reports process high-water
 
 The driver normalizes input rows for cosine-style retrieval, then uses inner products. FP32 neighbors from the same gallery are the ground truth. The reported relative reconstruction MSE is total squared reconstruction error divided by input energy. Recall is the mean top-k set overlap; optional label precision measures semantic retrieval when labels are supplied.
 
+`query_prefix_quality` separately records quality on the first 256 queries (or
+all queries if fewer) and the complete query set. These are evaluations of the
+same retrieved results, not additional timed searches. This supports nested
+query comparisons without changing the gallery or model. Frozen-weight and
+independent selection/export details are in the
+[scale-study design](quantization_scale_design.md).
+
 Each method gets a fresh process, the same data, seed, query count, block size, and repeat count. TurboQuant 2/4-bit variants share the same rotation seed. Scalar codebook and rotation setup, build time, and steady query latency are reported separately. Query timing includes input preparation, query rotation when needed, block decoding, Needle matmul, and top-k merging. It excludes image encoding, codebook setup, and gallery construction. One untimed warm-up precedes the recorded query samples; CPU math-library thread counts are fixed to one in workers.
 
 The default synthetic gallery contains random unit-sphere vectors. An NPZ feature file may provide `gallery`, `queries`, optional `gallery_labels`/`query_labels`, and an optional scalar `source` name. The MNIST export command uses training features as the gallery and the original smoke-run validation features as queries. It is a component check; formal Fashion-MNIST train/validation/test handling remains part of the shared experiment plan.
@@ -51,4 +58,4 @@ The default synthetic gallery contains random unit-sphere vectors. An NPZ featur
 
 Only the native CPU and `cpu_numpy` reference devices are supported for quantization. Runtime matrices are float32 and use the existing two-dimensional Needle matmul interface. Codebook dimension must be at least two; stored bit widths are two or four.
 
-The MSE quantizer can bias inner products. Low-bit search quality, speed, and total compression depend on the dataset and metadata amortization. Preliminary single-seed results do not establish paper-scale performance. Larger galleries, multiple seeds, final Fashion-MNIST features, and finer memory profiling are subsequent evaluation work.
+The MSE quantizer can bias inner products. Low-bit search quality, speed, and total compression depend on the dataset and metadata amortization. The completed [MNIST scale study](../reports/quantization_scale_summary.md) includes 60,000-row galleries and three rotation seeds for each of two encoders. There is still only one encoder-training seed per training size. Final Fashion-MNIST features, training-seed variation, and finer memory profiling remain subsequent work; these measurements do not establish paper-scale performance.

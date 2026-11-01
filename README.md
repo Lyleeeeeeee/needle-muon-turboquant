@@ -40,6 +40,23 @@ python apps/benchmark_quantization.py --output results/synthetic_quantization.js
 
 This compares FP32, uniform 2/4-bit, and TurboQuant-MSE 2/4-bit in isolated workers. Reports include numerical buffer bytes, actual archive bytes, setup/build costs, query latency, reconstruction error, recall, decoded-block sizes, and whole-worker peak RSS. Read the [methodology](docs/quantization.md) before interpreting memory or timing numbers. [Current measurements](reports/quantization_summary.md) include both improvements and negative findings.
 
+The [scale-study design](docs/quantization_scale_design.md) crosses training-set
+and gallery sizes using frozen checkpoints and identical query images. The
+completed [scale-study results](reports/quantization_scale_summary.md) cover both
+training sizes, both gallery sizes, and three rotations on 1,000 common queries.
+Larger-data training helps both methods; uniform still has better exact-neighbor
+recall in these MNIST experiments. The
+trainer accepts `--checkpoint-output results/encoder.npz`; independently expand
+retrieval without retraining with:
+
+```bash
+python apps/export_features.py --checkpoint results/encoder.npz --gallery-size 60000 --queries 1000 --output results/expanded_features.npz
+```
+
+The exporter preserves the original 4,096-image gallery and 256-image query
+selections as prefixes by default. Match `--reference-train`,
+`--reference-queries`, and `--seed` to other original smoke-run settings.
+
 For an encoder-feature integration check, provide MNIST's four original `.gz` files in one directory:
 
 ```bash

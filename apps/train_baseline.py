@@ -12,6 +12,7 @@ import numpy as np
 import needle as ndl
 from needle import nn, optim
 from models import SmallEncoder
+from encoder_checkpoint import save_encoder
 
 
 def main():
@@ -29,6 +30,8 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT / "results/baseline.json")
     parser.add_argument("--feature-output", type=Path,
                         help="Export gallery/query features and labels for retrieval checks")
+    parser.add_argument("--checkpoint-output", type=Path,
+                        help="Save frozen encoder weights for independent feature export")
     args = parser.parse_args()
     if min(args.train_limit, args.eval_limit, args.epochs, args.batch_size,
            args.hidden_dim, args.feature_dim) <= 0:
@@ -100,6 +103,9 @@ def main():
             raise RuntimeError("Training produced non-finite values.")
         record["epochs"].append(row)
         print(json.dumps(row), flush=True)
+    if args.checkpoint_output is not None:
+        save_encoder(model, args.checkpoint_output)
+        record["checkpoint_export"] = str(args.checkpoint_output)
     feature_batches = []
     for start in range(0, len(x_valid), args.batch_size):
         x, _ = tensors(x_valid[start:start + args.batch_size], y_valid[start:start + args.batch_size])

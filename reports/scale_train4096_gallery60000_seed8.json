@@ -1,0 +1,222 @@
+{
+  "source": "MNIST_frozen_encoder_f6d296bf6177",
+  "gallery_shape": [
+    60000,
+    64
+  ],
+  "query_shape": [
+    1000,
+    64
+  ],
+  "similarity": "inner_product_on_l2_normalized_inputs",
+  "seed": 8,
+  "k": 10,
+  "block_size": 256,
+  "repeats": 3,
+  "query_timing_scope": "query rotation, block decode, Needle matmul and top-k; excludes feature extraction and build",
+  "rss_scope": "entire isolated worker including input loading, build, quality checks, serialization and query",
+  "buffer_scope": "persistent numerical buffers; excludes Python objects and allocator overhead",
+  "block_scope": "decoded and score arrays only; excludes matmul packing/workspace and top-k merge arrays",
+  "environment": {
+    "python": "3.13.5",
+    "platform": "macOS-14.6.1-arm64-arm-64bit-Mach-O",
+    "numpy": "2.3.3",
+    "scipy": "1.16.2"
+  },
+  "results": [
+    {
+      "method": "fp32",
+      "device": "cpu()",
+      "stored_bytes": 15360000,
+      "storage_breakdown": {
+        "vectors": 15360000
+      },
+      "serialized_bytes": 15360268,
+      "setup_seconds": 0.0,
+      "build_seconds": 0.0042959589045494795,
+      "query_seconds": [
+        3.3015643330290914,
+        3.2926614589523524,
+        3.286594957811758
+      ],
+      "query_seconds_median": 3.2926614589523524,
+      "relative_reconstruction_mse": 0.0,
+      "recall_at_k": 1.0,
+      "label_precision_at_k": 0.9368,
+      "query_prefix_quality": [
+        {
+          "query_count": 256,
+          "recall_at_k": 1.0,
+          "label_precision_at_k": 0.9453125
+        },
+        {
+          "query_count": 1000,
+          "recall_at_k": 1.0,
+          "label_precision_at_k": 0.9368
+        }
+      ],
+      "max_decoded_block_bytes": 65536,
+      "max_score_block_bytes": 1024000,
+      "process_peak_rss_bytes": 177881088,
+      "compression_ratio_vs_fp32": 1.0
+    },
+    {
+      "method": "uniform_2",
+      "device": "cpu()",
+      "stored_bytes": 1440000,
+      "storage_breakdown": {
+        "codes": 960000,
+        "minimum": 240000,
+        "scale": 240000
+      },
+      "serialized_bytes": 1440998,
+      "setup_seconds": 1.1249911040067673e-05,
+      "build_seconds": 0.021321750013157725,
+      "query_seconds": [
+        3.3491274579428136,
+        3.3029362079687417,
+        3.301805708091706
+      ],
+      "query_seconds_median": 3.3029362079687417,
+      "relative_reconstruction_mse": 0.05005271612757627,
+      "recall_at_k": 0.08410000000000001,
+      "label_precision_at_k": 0.9169,
+      "query_prefix_quality": [
+        {
+          "query_count": 256,
+          "recall_at_k": 0.09296875,
+          "label_precision_at_k": 0.923828125
+        },
+        {
+          "query_count": 1000,
+          "recall_at_k": 0.08410000000000001,
+          "label_precision_at_k": 0.9169
+        }
+      ],
+      "max_decoded_block_bytes": 65536,
+      "max_score_block_bytes": 1024000,
+      "process_peak_rss_bytes": 193544192,
+      "compression_ratio_vs_fp32": 10.666666666666666
+    },
+    {
+      "method": "uniform_4",
+      "device": "cpu()",
+      "stored_bytes": 2400000,
+      "storage_breakdown": {
+        "codes": 1920000,
+        "minimum": 240000,
+        "scale": 240000
+      },
+      "serialized_bytes": 2400998,
+      "setup_seconds": 1.037493348121643e-05,
+      "build_seconds": 0.01998791703954339,
+      "query_seconds": [
+        3.3694810408633202,
+        3.2984194168820977,
+        3.2943748750258237
+      ],
+      "query_seconds_median": 3.2984194168820977,
+      "relative_reconstruction_mse": 0.001988066905138336,
+      "recall_at_k": 0.44889999999999997,
+      "label_precision_at_k": 0.9345,
+      "query_prefix_quality": [
+        {
+          "query_count": 256,
+          "recall_at_k": 0.45195312499999996,
+          "label_precision_at_k": 0.9421875
+        },
+        {
+          "query_count": 1000,
+          "recall_at_k": 0.44889999999999997,
+          "label_precision_at_k": 0.9345
+        }
+      ],
+      "max_decoded_block_bytes": 65536,
+      "max_score_block_bytes": 1024000,
+      "process_peak_rss_bytes": 221806592,
+      "compression_ratio_vs_fp32": 6.4
+    },
+    {
+      "method": "turbo_2",
+      "device": "cpu()",
+      "stored_bytes": 1216400,
+      "storage_breakdown": {
+        "codes": 960000,
+        "norms": 240000,
+        "rotation": 16384,
+        "codebook": 16
+      },
+      "serialized_bytes": 1217912,
+      "setup_seconds": 0.0018885829485952854,
+      "build_seconds": 0.08658912498503923,
+      "query_seconds": [
+        3.293000374920666,
+        3.307878749910742,
+        3.260962458094582
+      ],
+      "query_seconds_median": 3.293000374920666,
+      "relative_reconstruction_mse": 0.12405688048998771,
+      "recall_at_k": 0.06709999999999999,
+      "label_precision_at_k": 0.9012,
+      "query_prefix_quality": [
+        {
+          "query_count": 256,
+          "recall_at_k": 0.072265625,
+          "label_precision_at_k": 0.906640625
+        },
+        {
+          "query_count": 1000,
+          "recall_at_k": 0.06709999999999999,
+          "label_precision_at_k": 0.9012
+        }
+      ],
+      "max_decoded_block_bytes": 65536,
+      "max_score_block_bytes": 1024000,
+      "process_peak_rss_bytes": 253935616,
+      "codebook_setup_seconds": 0.0014605410397052765,
+      "rotation_setup_seconds": 0.0004142089746892452,
+      "compression_ratio_vs_fp32": 12.627425189082539
+    },
+    {
+      "method": "turbo_4",
+      "device": "cpu()",
+      "stored_bytes": 2176448,
+      "storage_breakdown": {
+        "codes": 1920000,
+        "norms": 240000,
+        "rotation": 16384,
+        "codebook": 64
+      },
+      "serialized_bytes": 2177960,
+      "setup_seconds": 0.021732000168412924,
+      "build_seconds": 0.11381574999541044,
+      "query_seconds": [
+        3.3253012909553945,
+        3.3217340828850865,
+        3.3372964579612017
+      ],
+      "query_seconds_median": 3.3253012909553945,
+      "relative_reconstruction_mse": 0.009926896964449991,
+      "recall_at_k": 0.2131,
+      "label_precision_at_k": 0.9244,
+      "query_prefix_quality": [
+        {
+          "query_count": 256,
+          "recall_at_k": 0.20664062500000002,
+          "label_precision_at_k": 0.935546875
+        },
+        {
+          "query_count": 1000,
+          "recall_at_k": 0.2131,
+          "label_precision_at_k": 0.9244
+        }
+      ],
+      "max_decoded_block_bytes": 65536,
+      "max_score_block_bytes": 1024000,
+      "process_peak_rss_bytes": 275677184,
+      "codebook_setup_seconds": 0.02129366691224277,
+      "rotation_setup_seconds": 0.00042404094710946083,
+      "compression_ratio_vs_fp32": 7.057370541359132
+    }
+  ]
+}

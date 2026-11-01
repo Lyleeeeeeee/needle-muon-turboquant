@@ -415,10 +415,14 @@ void ReduceSum(const AlignedArray& a, AlignedArray* out, size_t reduce_size) {
 }  // namespace cpu
 }  // namespace needle
 
+#include "quantization_cpu.h"
+
 PYBIND11_MODULE(ndarray_backend_cpu, m) {
   namespace py = pybind11;
   using namespace needle;
   using namespace cpu;
+
+  quantization_detail::Bind(m);
 
   m.attr("__device_name__") = "cpu";
   m.attr("__tile_size__") = TILE;

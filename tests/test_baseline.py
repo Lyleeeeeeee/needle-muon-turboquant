@@ -13,11 +13,12 @@ def test_baseline_command_trains_and_exports_features(tmp_path):
         import pytest
         pytest.skip("MNIST files are optional local smoke-test data")
     output = tmp_path / "baseline.json"
+    features = tmp_path / "features.npz"
     result = subprocess.run(
         [sys.executable, str(ROOT / "apps/train_baseline.py"), "--data-dir", str(data),
          "--train-limit", "128", "--eval-limit", "64", "--epochs", "1",
          "--batch-size", "32", "--hidden-dim", "16", "--feature-dim", "8",
-         "--output", str(output)],
+         "--output", str(output), "--feature-output", str(features)],
         cwd=ROOT, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -27,3 +28,9 @@ def test_baseline_command_trains_and_exports_features(tmp_path):
     assert len(record["epochs"]) == 1
     assert 0 <= record["epochs"][0]["validation_accuracy"] <= 1
     assert record["epochs"][0]["training_seconds"] > 0
+    import numpy as np
+    with np.load(features, allow_pickle=False) as exported:
+        assert exported['gallery'].shape == (128, 8)
+        assert exported['queries'].shape == (64, 8)
+        assert exported['gallery_labels'].shape == (128,)
+        assert exported['query_labels'].shape == (64,)

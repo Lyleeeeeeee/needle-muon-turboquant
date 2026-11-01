@@ -1,47 +1,45 @@
-# Muon 与 TurboQuant 的实施计划
+# Implementation plan
 
-## 当前基础
+## Integrated foundation
 
-- HW1 自动求导及基础算子已从完成的作业中恢复。
-- HW2 网络层、初始化、数据集／加载器、SGD 和 Adam 已恢复。
-- HW3 NDArray、原生 CPU 和 CUDA 源码已接入。原生 CPU 已在本机编译并完成训练检查；CUDA 尚待硬件验证。
-- 已添加独立 AdamW，验证了权重衰减不进入动量，以及间歇缺失梯度时的逐参数步数。
-- `apps/models.py` 提供两条路线共用的 `SmallEncoder`；`apps/train_baseline.py` 是可运行的训练入口。
+Completed HW1 autodiff and operations, HW2 layers/data utilities/SGD/Adam, and HW3 NDArray have been integrated. A native CPU build and small-model training run pass locally. CUDA remains unverified. A separate AdamW implementation has independent checks for decoupled decay and missing-gradient step counts.
 
-## 路线 A：Muon 训练优化
+`apps/models.py` defines the shared encoder; `apps/train_baseline.py` trains it and optionally exports gallery/query features. Preserve the source archives and provenance manifest.
 
-1. 固定作者实现版本，记录动量、Nesterov、Newton–Schulz 系数、迭代次数和矩阵形状缩放；先使用 Needle float32。
-2. 在 `needle.optim` 增加 Muon。初版将 `model.hidden.weight` 交给 Muon，输入层、输出层和所有偏置交给辅助 AdamW；按参数身份检查无遗漏、无重复。
-3. 先检查零梯度、矩形矩阵、优化器状态和独立 NumPy 更新结果。五步近似正交化不应被误判为必须精确等于 SVD 的结果。
-4. 与 AdamW 比较训练损失、验证精度、达到指定精度所需时间、每步耗时和优化器状态字节数。
+## Workstream A: Muon training optimization
 
-完成标准：更新规则正确，能训练同一个模型，有完整计时和对照记录。速度／精度提升由实验决定。
+1. Pin an author implementation and record momentum, Nesterov behavior, Newton-Schulz coefficients/steps, and shape scaling. Start with Needle float32.
+2. Add Muon to `needle.optim`. Initially assign `model.hidden.weight` to Muon; input/output layers and biases use auxiliary AdamW. Check that parameter groups are disjoint and exhaustive.
+3. Validate zero gradients, rectangular matrices, optimizer state, and agreement with an independent NumPy iteration. A five-step approximation need not exactly equal the SVD polar factor.
+4. Compare loss, validation accuracy, time to a target quality, per-step latency, and optimizer-state bytes against AdamW.
 
-参考：[Muon 作者说明](https://kellerjordan.github.io/posts/muon/)、[作者代码](https://github.com/KellerJordan/Muon)。
+Completion means correct updates and a controlled comparison on the same model; benefits are measured rather than assumed.
 
-## 路线 B：TurboQuant-MSE 存储优化
+References: [author explanation](https://kellerjordan.github.io/posts/muon/), [author implementation](https://github.com/KellerJordan/Muon).
 
-1. 实现共享随机正交旋转、向量归一化和分布对应的 Lloyd–Max 码本。码本按维数、位宽一次计算并缓存，独立记录生成成本。
-2. 在 Needle 中增加压缩特征存储模块；用 uint8 缓冲区实际打包 2／4 bit 编号。现有 NDArray 只支持 float32，不能通过保存近似浮点数宣称获得低位存储。
-3. 先建立独立 NumPy 数值参考，再在 Needle CPU 后端增加打包／解码接口，验证边界编号、零向量、非整字节长度、范数和旋转往返。
-4. 分块解码并使用 Needle 矩阵乘法搜索，避免一次恢复整个图片库。归一化原向量后以点积搜索；基础 MSE 版本的点积估计不承诺无偏。
-5. 比较 FP32、相同位宽的普通量化和 TurboQuant-MSE。统计编号、范数、码本、旋转矩阵和其他元数据的实际存储；同时测建库成本、完整查询耗时、峰值内存、重建误差和邻居 recall@10。
+## Workstream B: TurboQuant-MSE feature storage
 
-完成标准：数据确实按低位存储，数值行为经过核对，图库查询可用，有同位宽对照。速度和搜索质量与存储收益一起报告。
+The first implementation provides:
 
-参考：[TurboQuant 原论文](https://arxiv.org/html/2504.19874v1)。本轮实现限定为 MSE 版本；QJL 残差修正和大模型 KV cache 可在核心完成后再评估。
+- Exact sphere-coordinate Lloyd-Max codebooks, cached per dimension and bit width.
+- A shared Haar orthogonal rotation from Gaussian QR with sign correction.
+- Real uint8-backed 2/4-bit storage with per-row float32 norms.
+- Native CPU packing and block decoders, plus a NumPy reference path.
+- Blockwise inner-product retrieval in the rotated basis.
+- FP32 and packed uniform baselines, safe NPZ serialization, and isolated-worker comparisons.
 
-## 共用实验与组合分析
+See [quantization methodology](quantization.md) for math, contracts, and memory/timing definitions. The MSE variant is distinct from the unbiased-inner-product QJL extension.
 
-1. 采用 Fashion-MNIST 的固定训练／验证／测试划分，同一模型、特征维度、数据顺序和硬件。先以小样本做试跑，再确定正式预算。
-2. AdamW、Muon 给予相同调参次数；选择规则只依据验证集。正式比较保留多个随机种子。
-3. 每个训练好的模型生成一次图库特征，随后复用该模型比较 FP32、普通量化 2／4 bit、TurboQuant-MSE 2／4 bit。压缩比较不需要重复训练。
-4. 分别报告模型本身的质量，以及压缩后相对该模型 FP32 搜索下降多少；区分“特征更好”和“压缩更耐受”。
-5. 两条路线都有独立结果，最后研究优化器是否改变压缩损失。无加速、无互补或低位质量下降都应在排除实现错误后如实记录。
+Remaining validation work includes larger Fashion-MNIST feature galleries, multiple rotation seeds, sensitivity to bit width/block size/gallery size, and more complete process-memory profiling. These are experiments on the implemented component rather than assumptions about paper-level results.
 
-## 接下来两个可独立推进的任务
+Reference: [TurboQuant Algorithm 1](https://arxiv.org/html/2504.19874v1).
 
-- Muon：先固定参考版本，添加矩阵更新测试与参数分组，再接训练入口。
-- TurboQuant：先生成并核对旋转／码本，添加真实 2／4 bit 打包与还原测试，再接图库查询。
+## Shared study and interactions
 
-本阶段只完成起始框架；Muon 和 TurboQuant 的实现与正式比较结果尚未产生。
+1. Fix Fashion-MNIST training/validation/test splits, architecture, feature dimension, data order, and hardware. Keep final test queries separate from hyperparameter selection.
+2. Give AdamW and Muon the same tuning budget, select using validation data, and retain multiple seeds.
+3. Generate one feature gallery per trained model. Reuse it for FP32, uniform 2/4-bit, and TurboQuant-MSE 2/4-bit comparisons; compression variants do not require retraining.
+4. Report model quality separately from each model's compression-induced loss relative to its own FP32 neighbors. Consider matching base quality before attributing differences to compression tolerance.
+5. Keep independent results for each workstream, then test interactions. A valid negative result requires correct code and controlled measurements.
+
+The current MNIST run and synthetic-vector comparisons are integration checks. They do not establish superiority on the final task, paper-scale speedups, or optimizer/quantizer synergy.

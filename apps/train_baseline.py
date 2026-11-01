@@ -27,6 +27,8 @@ def main():
     parser.add_argument("--lr", type=float, default=.003)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--output", type=Path, default=ROOT / "results/baseline.json")
+    parser.add_argument("--feature-output", type=Path,
+                        help="Export gallery/query features and labels for retrieval checks")
     args = parser.parse_args()
     if min(args.train_limit, args.eval_limit, args.epochs, args.batch_size,
            args.hidden_dim, args.feature_dim) <= 0:
@@ -106,6 +108,15 @@ def main():
     if not np.isfinite(features).all():
         raise RuntimeError("Feature extraction produced non-finite values.")
     record["feature_shape"] = list(features.shape)
+    if args.feature_output is not None:
+        gallery_batches = []
+        for start in range(0, len(x_train), args.batch_size):
+            x, _ = tensors(x_train[start:start + args.batch_size], y_train[start:start + args.batch_size])
+            gallery_batches.append(model.features(x).numpy())
+        args.feature_output.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(args.feature_output, gallery=np.concatenate(gallery_batches), queries=features,
+                 gallery_labels=y_train, query_labels=y_valid, source=np.array("MNIST_encoder"))
+        record["feature_export"] = str(args.feature_output)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(record, indent=2) + "\n")
     print("Saved:", args.output)

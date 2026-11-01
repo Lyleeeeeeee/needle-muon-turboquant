@@ -10,64 +10,64 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'tools'), str(ROOT / 'experiments')]
 
 
-def evidence():
-    return json.loads((ROOT / 'report/results.json').read_text())
+def fresh_evidence():
+    current = json.loads((ROOT / 'report/results.json').read_text())
+    if current['schema_version'] == 2:
+        return current
+    base = ROOT / 'results/fresh_study_20261101'
+    return dict(schema_version=2,
+                studies={name: json.loads((base / name / 'run.json').read_text())
+                         for name in ('epochs', 'timed')},
+                system=json.loads((base / 'system.json').read_text()))
 
 
-def test_table_keeps_every_optimizer_store_and_negative_equal_time_result():
-    from build_report import collect_rows
+def test_fresh_table_has_complete_cross_products_and_explicit_resource_costs():
+    from build_report import collect_fresh_rows
 
-    rows = collect_rows(evidence())
-    primary = [r for r in rows if r['study'] == '10 epochs / original CPU']
-    assert {(r['optimizer'], r['store']) for r in primary} == {
-        (optimizer, store) for optimizer in ('AdamW', 'Muon + aux AdamW')
-        for store in ('FP32', 'Uniform 2-bit', 'Uniform 4-bit', 'TurboQuant 2-bit', 'TurboQuant 4-bit')}
-    adam = next(r for r in primary if r['optimizer'] == 'AdamW' and r['store'] == 'TurboQuant 2-bit')
-    assert adam['precision_mean'] == pytest.approx(.856)
-    # Packed 2-bit codes, one float32 norm per row, a 64x64 rotation and four centroids.
-    assert adam['gallery_bytes'] == 55000 * 64 * 2 // 8 + 55000 * 4 + 64 * 64 * 4 + 4 * 4
-    terminal = [r for r in rows if r['study'] == '220s terminal / original CPU (posthoc)']
-    assert len(terminal) == 2
-    assert terminal[0]['precision_mean'] > terminal[1]['precision_mean']
-    system = [r for r in rows if r['study'].startswith('128 updates /')]
-    assert len(system) == 4
-    assert all(r['precision_mean'] is None and r['gallery_bytes'] is None for r in system)
+    rows = collect_fresh_rows(fresh_evidence())
+    assert len(rows) == 28
+    for name in ('10 epochs / final CPU', '220s / final CPU'):
+        main = [r for r in rows if r['study'] == name]
+        assert {(r['optimizer'], r['store']) for r in main} == {
+            (m, q) for m in ('AdamW', 'Muon + aux AdamW')
+            for q in ('FP32', 'Uniform 2-bit', 'Uniform 4-bit', 'TurboQuant 2-bit', 'TurboQuant 4-bit')}
+        for row in main:
+            assert row['updates_mean'] > 0
+            assert row['optimizer_state_bytes'] == (1139280 if row['optimizer'] == 'AdamW' else 975440)
+            exact = next(r for r in main if r['optimizer'] == row['optimizer'] and r['store'] == 'FP32')
+            assert row['precision_change_mean'] == pytest.approx(row['precision_mean'] - exact['precision_mean'])
+    checks = [r for r in rows if 'terminal check' in r['study']]
+    assert len(checks) == 4 and all(r['store'] == 'FP32' for r in checks)
 
 
-@pytest.mark.parametrize('mutation', ['missing_quant_trial', 'duplicate_terminal', 'wrong_training_pair',
-                                    'different_system_output', 'wrong_precision_range'])
-def test_report_refuses_incomplete_or_incompatible_measurements(mutation):
-    from build_report import collect_rows
+@pytest.mark.parametrize('mutation', ['mixed_binary', 'missing_store', 'different_images',
+                                    'missing_terminal', 'wrong_budget', 'wrong_state', 'zero_time'])
+def test_fresh_table_rejects_incompatible_or_missing_trials(mutation):
+    from build_report import collect_fresh_rows
 
-    data = copy.deepcopy(evidence())
-    if mutation == 'missing_quant_trial': data['fixed_epochs']['retrieval_rows'].pop()
-    if mutation == 'duplicate_terminal': data['equal_time']['terminal_rows'].append(data['equal_time']['terminal_rows'][0])
-    if mutation == 'wrong_training_pair': data['fixed_epochs']['training_records'][0]['initial_parameter_sha256'] = 'wrong'
-    if mutation == 'different_system_output': data['system']['runs'][0]['metrics']['training_adamw']['output_sha256'] = 'wrong'
-    if mutation == 'wrong_precision_range': data['fixed_epochs']['retrieval_rows'][0]['label_precision_at_k'] = 1.1
+    data = copy.deepcopy(fresh_evidence())
+    epochs, timed = data['studies']['epochs'], data['studies']['timed']
+    if mutation == 'mixed_binary': timed['protocol']['backend']['extension_sha256'] = '0' * 64
+    if mutation == 'missing_store': epochs['retrieval_rows'].pop()
+    if mutation == 'different_images': timed['feature_metadata'][0]['gallery_ids_sha256'] = 'different'
+    if mutation == 'missing_terminal': timed['checkpoint_check_rows'].pop()
+    if mutation == 'wrong_budget': timed['training_records'][0]['time_budget_seconds'] = 221.
+    if mutation == 'wrong_state': epochs['training_records'][0]['optimizer_numeric_state_bytes'] = 1
+    if mutation == 'zero_time': epochs['training_records'][0]['epochs'][0]['training_seconds'] = 0.
     with pytest.raises(ValueError):
-        collect_rows(data)
+        collect_fresh_rows(data)
 
 
 def test_readme_and_csv_are_one_generated_table():
     from build_report import collect_rows, render_markdown, render_csv
 
-    rows = collect_rows(evidence())
+    rows = collect_rows(json.loads((ROOT / 'report/results.json').read_text()))
     readme = (ROOT / 'README.md').read_text()
     assert readme.count('| Study | Optimizer |') == 1
     assert sum(line.startswith('|---') for line in readme.splitlines()) == 1
     actual = readme.split('<!-- RESULTS:START -->\n')[1].split('\n<!-- RESULTS:END -->')[0]
     assert actual == render_markdown(rows)
     assert (ROOT / 'report/results.csv').read_text() == render_csv(rows)
-
-
-def test_history_validation_rejects_plausible_but_changed_measurements():
-    from build_report import verify_history
-
-    data = evidence()
-    data['fixed_epochs']['retrieval_rows'][0]['label_precision_at_k'] += .001
-    with pytest.raises(ValueError, match='differ from archive'):
-        verify_history(data)
 
 
 @pytest.mark.parametrize('study,checkpoint', [('epochs', 'best'), ('timed', 'terminal')])
@@ -89,6 +89,7 @@ def test_unified_pipeline_trains_both_optimizers_and_all_stores(tmp_path, study,
     output = tmp_path / 'run'
     result = subprocess.run([sys.executable, str(ROOT / 'experiments/run_report.py'), '--smoke',
                              '--study', study, '--checkpoint', checkpoint,
+                             '--checkpoint-check',
                              '--data-dir', str(data), '--output-dir', str(output)],
                             cwd=ROOT, capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -99,3 +100,30 @@ def test_unified_pipeline_trains_both_optimizers_and_all_stores(tmp_path, study,
     assert {r['method'] for r in record['retrieval_rows']} == {'fp32', 'uniform_2', 'uniform_4', 'turbo_2', 'turbo_4'}
     assert {r['encoder'] for r in record['retrieval_rows']} == {'adamw', 'muon'}
     assert len(record['retrieval_rows']) == 18
+    assert len(record['checkpoint_check_rows']) == 2
+    assert {r['method'] for r in record['checkpoint_check_rows']} == {'fp32'}
+    assert len(record['protocol']['backend']['extension_sha256']) == 64
+    training_path = output / 'adamw_seed8_train.json'
+    before = training_path.read_bytes()
+    command = [sys.executable, str(ROOT / 'experiments/run_report.py'), '--smoke',
+               '--study', study, '--checkpoint', checkpoint, '--checkpoint-check', '--resume',
+               '--data-dir', str(data), '--output-dir', str(output)]
+    resumed = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=30)
+    assert resumed.returncode == 0, resumed.stdout + resumed.stderr
+    assert training_path.read_bytes() == before
+    frozen = output / 'protocol.json'
+    changed = json.loads(frozen.read_text())
+    changed['rates']['muon'] = .99
+    frozen.write_text(json.dumps(changed))
+    rejected = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=30)
+    assert rejected.returncode != 0
+    assert 'protocol' in (rejected.stdout + rejected.stderr).lower()
+
+
+def test_fresh_history_verification_rejects_changed_rate_selection():
+    from build_report import verify_history
+
+    data = copy.deepcopy(fresh_evidence())
+    data['locked_rate_selection']['selected']['adamw']['candidate'] = 'changed'
+    with pytest.raises(ValueError, match='selection differs'):
+        verify_history(data)

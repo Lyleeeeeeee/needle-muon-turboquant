@@ -7,8 +7,8 @@ __pycache__/
 .venv/
 .DS_Store
 build/
-data/
-datasets/
+/data/
+/datasets/
 results/
 sources/*.tar.gz
 *.npz

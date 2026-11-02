@@ -1,5 +1,9 @@
 # Muon Training and TurboQuant Retrieval in Needle
 
+**Start with [the standalone final project](final_project/README.md)** for the
+two current CIFAR tables, contributions, equations, implementation links and
+reproduction commands. The files below retain the earlier experimental archive.
+
 A 10-714 deep learning systems project built on the completed HW1–HW3 Needle
 framework. AdamW and Muon train image encoders; each encoder's own embeddings
 then feed FP32, uniform and TurboQuant-MSE galleries. Training, autodiff,

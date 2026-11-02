@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.so
+*.dylib
+*.o
+/data/
+/runs/
+*.npz
+*.npy
+.venv/
+.DS_Store

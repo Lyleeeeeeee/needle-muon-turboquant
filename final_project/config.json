@@ -1,0 +1,288 @@
+{
+  "protocol": {
+    "dataset": "CIFAR-100",
+    "model": {
+      "patch_dim": 192,
+      "tokens": 16,
+      "width": 64,
+      "depth": 2,
+      "token_hidden": 32,
+      "channel_hidden": 128,
+      "classes": 100
+    },
+    "batch_size": 256,
+    "data_sha256": "f31298fc616915fa142368359df1c4ca2ae984d6915ca468b998a5ec6aeebf29",
+    "official_test_used": false,
+    "split_seed": 17,
+    "train_per_class": 100,
+    "validation_per_class": 20,
+    "query_per_class": 10,
+    "train_rows": 10000,
+    "validation_rows": 2000,
+    "train_ids_sha256": "08073168b3ca5a76b6ad97979c9f30eddedf751e66d08f81e58c62fd21886121",
+    "validation_ids_sha256": "d0042c60075805e6b64fbdc4a9d2d13bc430cc5094f8d1e783b170727d5ba20d",
+    "mean": [
+      0.505109429359436,
+      0.48528456687927246,
+      0.43918436765670776
+    ],
+    "std": [
+      0.26751890778541565,
+      0.2558988034725189,
+      0.2754799723625183
+    ],
+    "augmentation": "horizontal_flip_probability_0.5",
+    "weight_decay": 0.01,
+    "feature_dim": 64,
+    "gallery_format": "fp32",
+    "k": 10,
+    "metric": "cosine",
+    "selected": {
+      "adamw": {
+        "candidate": {
+          "id": "adamw_2",
+          "lr": 0.003,
+          "muon_lr": null
+        },
+        "validation_auc": 0.05979999999999999,
+        "terminal_precision": 0.0772
+      },
+      "muon": {
+        "candidate": {
+          "id": "muon_2",
+          "lr": 0.003,
+          "muon_lr": 0.021
+        },
+        "validation_auc": 0.07303,
+        "terminal_precision": 0.1018
+      }
+    },
+    "budget_seconds": 600.0,
+    "targets": [
+      0.1,
+      0.15,
+      0.2,
+      0.3
+    ],
+    "final_seeds": [
+      9,
+      10,
+      11
+    ],
+    "observation_rule": "every20_updates_through400_then_every40;always_terminal",
+    "offline_quality_workers": 3,
+    "no_metric_based_stopping": true,
+    "timing_scope": "complete_training_updates_including_NS;excludes_setup_snapshotIO_offline_quality",
+    "execution": "six_sequential_training_workers_then_parallel_offline_quality"
+  },
+  "provenance": {
+    "original_commit": "eb145cc583127993f85ad09652bc2482963d9d3f",
+    "training_run_sha256": "e8d4dff693b6e717c266ab4b5c23761b6652cfb15f319381721bbbd63a76b1bf",
+    "selection_sha256": "260dc24f5e76e514261596e72895b86dec3b3e9ff1335d6bf9e69410ef7f9713"
+  },
+  "learning_rate_search": {
+    "seed": 7,
+    "epochs": 5,
+    "grid": {
+      "adamw": [
+        {
+          "id": "adamw_0",
+          "lr": 0.0003,
+          "muon_lr": null
+        },
+        {
+          "id": "adamw_1",
+          "lr": 0.001,
+          "muon_lr": null
+        },
+        {
+          "id": "adamw_2",
+          "lr": 0.003,
+          "muon_lr": null
+        }
+      ],
+      "muon": [
+        {
+          "id": "muon_0",
+          "lr": 0.0003,
+          "muon_lr": 0.0021
+        },
+        {
+          "id": "muon_1",
+          "lr": 0.001,
+          "muon_lr": 0.007
+        },
+        {
+          "id": "muon_2",
+          "lr": 0.003,
+          "muon_lr": 0.021
+        }
+      ]
+    },
+    "rule": "validation_Pat10_AUC_over_updates;tie_terminal_then_id",
+    "candidates": [
+      {
+        "optimizer": "adamw",
+        "candidate": {
+          "id": "adamw_0",
+          "lr": 0.0003,
+          "muon_lr": null
+        },
+        "status": "complete",
+        "curve": [
+          {
+            "steps": 0,
+            "precision": 0.0439
+          },
+          {
+            "steps": 40,
+            "precision": 0.0454
+          },
+          {
+            "steps": 120,
+            "precision": 0.0507
+          },
+          {
+            "steps": 200,
+            "precision": 0.0512
+          }
+        ]
+      },
+      {
+        "optimizer": "muon",
+        "candidate": {
+          "id": "muon_0",
+          "lr": 0.0003,
+          "muon_lr": 0.0021
+        },
+        "status": "complete",
+        "curve": [
+          {
+            "steps": 0,
+            "precision": 0.0439
+          },
+          {
+            "steps": 40,
+            "precision": 0.045
+          },
+          {
+            "steps": 120,
+            "precision": 0.0507
+          },
+          {
+            "steps": 200,
+            "precision": 0.0546
+          }
+        ]
+      },
+      {
+        "optimizer": "muon",
+        "candidate": {
+          "id": "muon_1",
+          "lr": 0.001,
+          "muon_lr": 0.007
+        },
+        "status": "complete",
+        "curve": [
+          {
+            "steps": 0,
+            "precision": 0.0439
+          },
+          {
+            "steps": 40,
+            "precision": 0.052500000000000005
+          },
+          {
+            "steps": 120,
+            "precision": 0.0637
+          },
+          {
+            "steps": 200,
+            "precision": 0.0757
+          }
+        ]
+      },
+      {
+        "optimizer": "adamw",
+        "candidate": {
+          "id": "adamw_1",
+          "lr": 0.001,
+          "muon_lr": null
+        },
+        "status": "complete",
+        "curve": [
+          {
+            "steps": 0,
+            "precision": 0.0439
+          },
+          {
+            "steps": 40,
+            "precision": 0.0502
+          },
+          {
+            "steps": 120,
+            "precision": 0.0529
+          },
+          {
+            "steps": 200,
+            "precision": 0.059
+          }
+        ]
+      },
+      {
+        "optimizer": "adamw",
+        "candidate": {
+          "id": "adamw_2",
+          "lr": 0.003,
+          "muon_lr": null
+        },
+        "status": "complete",
+        "curve": [
+          {
+            "steps": 0,
+            "precision": 0.0439
+          },
+          {
+            "steps": 40,
+            "precision": 0.0479
+          },
+          {
+            "steps": 120,
+            "precision": 0.064
+          },
+          {
+            "steps": 200,
+            "precision": 0.0772
+          }
+        ]
+      },
+      {
+        "optimizer": "muon",
+        "candidate": {
+          "id": "muon_2",
+          "lr": 0.003,
+          "muon_lr": 0.021
+        },
+        "status": "complete",
+        "curve": [
+          {
+            "steps": 0,
+            "precision": 0.0439
+          },
+          {
+            "steps": 40,
+            "precision": 0.0524
+          },
+          {
+            "steps": 120,
+            "precision": 0.0814
+          },
+          {
+            "steps": 200,
+            "precision": 0.1018
+          }
+        ]
+      }
+    ]
+  }
+}

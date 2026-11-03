@@ -10,9 +10,8 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'python'), str(ROOT / 'apps')]
-from common import digest, distribution, save_json
-from run_report import run
-from time_to_quality import THREADS, check_frozen
+from common import (digest, distribution, save_json, run, THREADS, check_frozen,
+                    runtime_manifest, benchmark_backend)
 os.environ.update(THREADS)
 
 METHODS = ['fp32', 'uniform_2', 'uniform_4', 'compact_2', 'compact_4',
@@ -22,7 +21,7 @@ METHODS = ['fp32', 'uniform_2', 'uniform_4', 'compact_2', 'compact_4',
 def worker(args):
     import numpy as np
     import needle as ndl
-    from benchmark_quantization import retrieval_quality
+    from common import retrieval_quality
     from needle.quantization import FloatVectorStore, TurboQuantMSE, UniformQuantizer
     from uniform_compact import CompactUniformQuantizer
     with np.load(args.features, allow_pickle=False) as f:
@@ -119,7 +118,7 @@ def summarize_galleries(rows, seeds):
 def main():
     import numpy as np
     import needle as ndl
-    from benchmark_quantization import unit_rows
+    from common import unit_rows
     from needle.quantization import FloatVectorStore
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--features', type=Path, required=True)
@@ -140,7 +139,7 @@ def main():
         gallery, queries = unit_rows(f['gallery']), unit_rows(f['queries'])
         labels = {k: f[k] for k in ('gallery_labels', 'query_labels')}
     if not 0 < args.k <= len(gallery): parser.error('Invalid neighbor count')
-    baseline = json.loads((ROOT / 'report/results.json').read_text())['integrated']['protocol']
+    baseline = dict(source_sha256=runtime_manifest(), backend=benchmark_backend())
     sources = dict(baseline['source_sha256'])
     for relative in ('experiments/compare_galleries.py', 'experiments/uniform_compact.py'):
         sources[relative] = digest(ROOT / relative)

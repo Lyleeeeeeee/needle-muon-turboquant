@@ -76,7 +76,7 @@ class EWisePow(TensorOp):
         # raise NotImplementedError()
         return array_api.power(a, b) if BACKEND == "np" else (a.log() * b).exp()
         ### END YOUR SOLUTION
-        
+
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
         # raise NotImplementedError()
@@ -223,19 +223,19 @@ class BroadcastTo(TensorOp):
         # raise NotImplementedError()
         input_shape = node.inputs[0].shape
         output_shape = out_grad.shape
-        
+
         #find the axis where the broadcast happens
 
         #match the shape first
         padded_input_shape = ((1,) * (len(output_shape) - len(input_shape)) + input_shape)
-        
+
         # if output dim is being broadcast (not equal to 1)
         # meanwhile if input dim is not 1 (then being broadcast)
         sum_axes = tuple(i for i, (input_dim, output_dim) in enumerate(
                 zip(padded_input_shape, output_shape))
             if input_dim == 1 and output_dim != 1
         )
-        
+
         grad = summation(out_grad, axes = sum_axes)
         return reshape(grad, input_shape)
         ### END YOUR SOLUTION
@@ -403,4 +403,3 @@ class ReLU(TensorOp):
 
 def relu(a):
     return ReLU()(a)
-

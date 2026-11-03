@@ -21,7 +21,7 @@ class Dataset:
 
     def __len__(self) -> int:
         raise NotImplementedError
-    
+
     def apply_transforms(self, x):
         if self.transforms is not None:
             # apply the transforms
@@ -55,7 +55,7 @@ class DataLoader:
         self.shuffle = shuffle
         self.batch_size = batch_size
         if not self.shuffle:
-            self.ordering = np.array_split(np.arange(len(dataset)), 
+            self.ordering = np.array_split(np.arange(len(dataset)),
                                            range(batch_size, len(dataset), batch_size))
 
     def __iter__(self):
@@ -80,4 +80,3 @@ class DataLoader:
         batch = self.dataset[batch_indices]
         return tuple(Tensor(array) for array in batch)
         ### END YOUR SOLUTION
-

@@ -699,5 +699,3 @@ def tanh(a: NDArray) -> NDArray:
 
 def sum(a: NDArray, axis: int | tuple[int] | list[int] | None = None, keepdims: bool = False) -> NDArray:
     return a.sum(axis=axis, keepdims=keepdims)
-
-

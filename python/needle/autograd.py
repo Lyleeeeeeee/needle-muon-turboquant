@@ -425,7 +425,7 @@ def topo_sort_dfs(node, visited, topo_order):
 
     for input_node in node.inputs:
       topo_sort_dfs(input_node, visited, topo_order)
-    
+
     topo_order.append(node)
     ### END YOUR SOLUTION
 

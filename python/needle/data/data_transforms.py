@@ -34,7 +34,7 @@ class RandomCrop(Transform):
         """ Zero pad and then randomly crop an image.
         Args:
              img: H x W x C NDArray of an image
-        Return 
+        Return
             H x W x C NDArray of cliped image
         Note: generate the image shifted by shift_x, shift_y specified below
         """
